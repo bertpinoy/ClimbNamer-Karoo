@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="climbnamer_orange">#FFFF6B1A</color>
+    <color name="climbnamer_navy">#FF0C1220</color>
+    <color name="alert_background">#FF1E2940</color>
+    <color name="alert_text">#FFFFFFFF</color>
+</resources>

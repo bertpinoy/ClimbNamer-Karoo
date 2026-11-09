@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ExtensionInfo
+    displayName="@string/extension_name"
+    icon="@drawable/ic_climb"
+    id="climbnamer"
+    scansDevices="false"
+    mapLayer="true">
+    <DataType
+        description="@string/climb_name_description"
+        displayName="@string/climb_name"
+        graphical="true"
+        icon="@drawable/ic_climb"
+        typeId="climb-name" />
+</ExtensionInfo>

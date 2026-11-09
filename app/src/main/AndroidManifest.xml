@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:theme="@android:style/Theme.Material.NoActionBar">
+
+        <activity
+            android:name=".ui.MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".extension.ClimbNamerExtension"
+            android:exported="true"
+            tools:ignore="ExportedService">
+            <!-- Makes this app discoverable as a Karoo extension -->
+            <intent-filter>
+                <action android:name="io.hammerhead.karooext.KAROO_EXTENSION" />
+            </intent-filter>
+            <meta-data
+                android:name="io.hammerhead.karooext.EXTENSION_INFO"
+                android:resource="@xml/extension_info" />
+        </service>
+
+        <!-- Lets the Karoo check for updates (manifest.json attached to GitHub releases) -->
+        <meta-data
+            android:name="io.hammerhead.karooext.MANIFEST_URL"
+            android:value="https://github.com/bertpinoy/ClimbNamer-Karoo/releases/latest/download/manifest.json" />
+    </application>
+
+</manifest>

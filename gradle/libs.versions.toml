@@ -1,0 +1,30 @@
+[versions]
+agp = "8.6.1"
+kotlin = "2.0.0"
+karooExt = "1.1.9"
+coreKtx = "1.13.1"
+activity = "1.9.3"
+lifecycle = "2.8.6"
+coroutines = "1.8.0"
+glance = "1.1.1"
+serialization = "1.6.3"
+
+[libraries]
+karoo-ext = { module = "io.hammerhead:karoo-ext", version.ref = "karooExt" }
+androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
+androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activity" }
+androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycle" }
+androidx-compose-bom = { module = "androidx.compose:compose-bom", version = "2024.10.00" }
+androidx-material3 = { module = "androidx.compose.material3:material3" }
+androidx-ui = { module = "androidx.compose.ui:ui" }
+androidx-glance-appwidget = { module = "androidx.glance:glance-appwidget", version.ref = "glance" }
+kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization" }
+timber = { module = "com.jakewharton.timber:timber", version = "5.0.1" }
+junit = { module = "junit:junit", version = "4.13.2" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+jetbrains-kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+jetbrains-kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+jetbrains-kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }

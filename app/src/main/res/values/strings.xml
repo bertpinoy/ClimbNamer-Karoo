@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ClimbNamer</string>
+    <string name="extension_name">ClimbNamer</string>
+    <string name="climb_name">Climb name</string>
+    <string name="climb_name_description">Name of the current climb, or the next one on your route (OpenStreetMap)</string>
+</resources>

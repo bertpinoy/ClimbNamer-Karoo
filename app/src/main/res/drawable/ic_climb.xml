@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Mountain with a summit pennant (ClimbNamer). Single colour so the Karoo can tint it. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- back peak -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillAlpha="0.6"
+        android:pathData="M1,21 L7.5,12 L13,21 Z" />
+    <!-- main peak -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M4.5,21 L13.5,7 L23,21 Z" />
+    <!-- pole -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M13,2 L14,2 L14,7.6 L13,7.6 Z" />
+    <!-- pennant -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M14,2 L19.5,3.7 L14,5.4 Z" />
+</vector>
