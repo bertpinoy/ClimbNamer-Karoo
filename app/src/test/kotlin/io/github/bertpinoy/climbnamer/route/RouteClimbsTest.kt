@@ -110,6 +110,31 @@ class RouteClimbsTest {
     }
 
     @Test
+    fun climbBeyondPathEndUsesOnlyExistingPart() {
+        // Loop route joined at its end: the path is the approach only, and the last climb
+        // runs 1 km past it. Its points must not pile up at the end of the path.
+        // ~3 km eastwards, ending at the route's end point (where it is joined)
+        val end = straightRoute.last()
+        val approach = (0..30).map { LatLng(end.lat, end.lng - 0.042 + it * 0.0014) }
+        val approachLen = (1 until approach.size).sumOf { Geo.haversine(approach[it - 1], approach[it]) }
+        val climbs = listOf(OnNavigationState.NavigationState.Climb(approachLen - 500.0, 1500.0, 4.0, 60.0))
+        val result = RouteClimbsBuilder.build(
+            name = "Loop",
+            polyline = encode(straightRoute.map { it.lat to it.lng }, 5),
+            elevationPolyline = null,
+            routeDistance = straightTotal,
+            climbs = climbs,
+            rejoinPolyline = encode(approach.map { it.lat to it.lng }, 5),
+            rejoinDistance = straightTotal, // joins at the END of the route
+        )!!
+        val c = result.climbs.single()
+        // Only the last 500 m of the approach: about 20 samples, none duplicated at the end.
+        val atEnd = c.points.count { Geo.haversine(it, approach.last()) < 1.0 }
+        assertEquals(1, atEnd)
+        assertTrue(result.diagnostics.contains("beyond the end"))
+    }
+
+    @Test
     fun detectsSwappedProfile() {
         // Pairs given as (elevation, distance) instead of (distance, elevation).
         val profile = (0..100).map { i ->

@@ -120,9 +120,16 @@ object RouteClimbsBuilder {
 
         val result = climbs.sortedBy { it.startDistance }.mapIndexed { i, c ->
             val start = c.startDistance
-            val end = c.startDistance + c.length
+            // A climb can run past the end of the navigated path (e.g. when the Karoo joins a loop
+            // route at its end). Only use the part that exists; squeezing the rest onto the last
+            // point gave names of the road at the end of the route.
+            val end = minOf(c.startDistance + c.length, total)
             val step = max(25.0, c.length / 80.0)
-            val samples = generateSequence(start) { it + step }.takeWhile { it < end }.toList() + end
+            val samples = if (start >= end) {
+                listOf(minOf(start, total))
+            } else {
+                generateSequence(start) { it + step }.takeWhile { it < end }.toList() + end
+            }
             // Top = highest point of the climb according to the profile, else the end.
             var topDist = end
             var topEle: Double? = null
