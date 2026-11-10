@@ -22,6 +22,8 @@ data class NamedClimb(
     val lookupFailed: Boolean = false,
     /** The failed lookup will be tried again automatically. */
     val retrying: Boolean = false,
+    /** A lookup for this climb is running right now. */
+    val lookingUp: Boolean = false,
 ) {
     /** Name to show, or a fallback like "Climb 3". */
     val label: String get() = name?.takeIf { it.source != "none" }?.name ?: "Climb ${geo.index + 1}"
@@ -36,6 +38,8 @@ data class ActiveRoute(
     /** Length of the approach to the route (m); 0 when navigation started on the route. */
     val approachLength: Double = 0.0,
     val diagnostics: String = "",
+    /** Some names were not stored yet when the route was loaded, so they had to be looked up. */
+    val neededLookup: Boolean = false,
 )
 
 /** Where the rider is on the route. */
@@ -77,7 +81,12 @@ object ClimbRepository {
         if (_route.value?.key == climbs.key) {
             // Same route again (e.g. a reroute event or a settings change): resume missing
             // lookups, or stop them (including pending retries) when lookups were switched off.
-            if (lookup) startLookups(cache, namer, scope, allowNominatim) else lookupJob?.cancel()
+            if (lookup) {
+                startLookups(cache, namer, scope, allowNominatim)
+            } else {
+                lookupJob?.cancel()
+                _route.update { r -> r?.copy(climbs = r.climbs.map { it.copy(lookingUp = false, retrying = false) }) }
+            }
             return
         }
         lookupJob?.cancel()
@@ -88,6 +97,7 @@ object ClimbRepository {
             climbs = climbs.climbs.map { NamedClimb(it, cache.get(it)) },
             approachLength = climbs.approachLength,
             diagnostics = climbs.diagnostics,
+            neededLookup = climbs.climbs.any { cache.get(it) == null },
         )
         Timber.i("Route '${climbs.name}' with ${climbs.climbs.size} climbs")
         if (lookup) startLookups(cache, namer, scope, allowNominatim)
@@ -111,11 +121,11 @@ object ClimbRepository {
                 if (todo.isEmpty()) return@launch
                 val retryLeft = attempt < retryMinutes.size
                 for (climb in todo) {
-                    updateClimb(routeKey, climb.geo.index) { it.copy(lookupFailed = false, retrying = false) }
+                    updateClimb(routeKey, climb.geo.index) { it.copy(lookupFailed = false, retrying = false, lookingUp = true) }
                     val name = namer.name(climb.geo, allowNominatim)
                     if (name != null) cache.put(climb.geo, name)
                     updateClimb(routeKey, climb.geo.index) {
-                        it.copy(name = name, lookupFailed = name == null, retrying = name == null && retryLeft)
+                        it.copy(name = name, lookupFailed = name == null, retrying = name == null && retryLeft, lookingUp = false)
                     }
                 }
                 val stillMissing = _route.value?.takeIf { it.key == routeKey }?.climbs?.any { it.name == null } ?: false
@@ -130,6 +140,30 @@ object ClimbRepository {
     private fun updateClimb(routeKey: String, index: Int, change: (NamedClimb) -> NamedClimb) {
         _route.update { r ->
             if (r?.key != routeKey) r else r.copy(climbs = r.climbs.map { if (it.geo.index == index) change(it) else it })
+        }
+    }
+
+    /** Where looking up names for the active route stands, for the Control Center notification. */
+    sealed class SyncStatus {
+        abstract val named: Int
+        abstract val total: Int
+        data class Running(override val named: Int, override val total: Int) : SyncStatus()
+        data class WaitingForConnection(override val named: Int, override val total: Int) : SyncStatus()
+        data class Done(override val named: Int, override val total: Int, val names: List<String>) : SyncStatus()
+        data class Failed(override val named: Int, override val total: Int, val failed: Int) : SyncStatus()
+    }
+
+    /** Null when there's nothing to report (no route, or no lookups were needed or allowed). */
+    fun syncStatus(route: ActiveRoute?): SyncStatus? {
+        if (route == null || !route.neededLookup) return null
+        val total = route.climbs.size
+        val named = route.climbs.count { it.name != null }
+        return when {
+            route.climbs.any { it.lookingUp } -> SyncStatus.Running(named, total)
+            route.climbs.any { it.lookupFailed && it.retrying } -> SyncStatus.WaitingForConnection(named, total)
+            named == total -> SyncStatus.Done(named, total, route.climbs.map { it.label })
+            route.climbs.any { it.lookupFailed } -> SyncStatus.Failed(named, total, route.climbs.count { it.lookupFailed })
+            else -> null
         }
     }
 

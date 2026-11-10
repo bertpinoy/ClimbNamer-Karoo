@@ -137,6 +137,9 @@ private fun SettingsScreen() {
         Toggle("Use Nominatim when Overpass is busy", settings.nominatimFallback) { v ->
             update { it.copy(nominatimFallback = v) }
         }
+        Toggle("Show progress in the Control Center", settings.syncNotifications) { v ->
+            update { it.copy(syncNotifications = v) }
+        }
 
         Section("Current route")
         val r = route

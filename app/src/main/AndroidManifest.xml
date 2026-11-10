@@ -13,6 +13,8 @@
             android:exported="true"
             android:launchMode="singleTop">
             <intent-filter>
+                <!-- Opened from the Control Center notification -->
+                <action android:name="io.github.bertpinoy.climbnamer.MAIN" />
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
                 <category android:name="android.intent.category.DEFAULT" />

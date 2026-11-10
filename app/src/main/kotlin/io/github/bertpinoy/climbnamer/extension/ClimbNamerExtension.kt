@@ -23,12 +23,14 @@ import io.hammerhead.karooext.models.OnNavigationState
 import io.hammerhead.karooext.models.ShowSymbols
 import io.hammerhead.karooext.models.StreamState
 import io.hammerhead.karooext.models.Symbol
+import io.hammerhead.karooext.models.SystemNotification
 import io.hammerhead.karooext.models.UserProfile
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 import timber.log.Timber
@@ -62,6 +64,7 @@ class ClimbNamerExtension : KarooExtension("climbnamer", BuildConfig.VERSION_NAM
         watchProgress()
         watchUnits()
         watchAlerts()
+        watchSyncNotifications()
     }
 
     override fun onDestroy() {
@@ -185,6 +188,56 @@ class ClimbNamerExtension : KarooExtension("climbnamer", BuildConfig.VERSION_NAM
                 ),
             )
         }
+    }
+
+    // ------------------------------------------------------------------ sync notification
+
+    /**
+     * One Control Center notification per route showing where looking up names stands; it is
+     * updated in place (same id). Only shown when names actually had to be looked up.
+     */
+    private fun watchSyncNotifications() = scope.launch {
+        combine(ClimbRepository.route, SettingsStore.flow(applicationContext)) { route, settings ->
+            if (!settings.syncNotifications) null else ClimbRepository.syncStatus(route)?.let { route!!.name to it }
+        }
+            .distinctUntilChanged()
+            .collect { pair ->
+                val (routeName, status) = pair ?: return@collect
+                val plural = { n: Int -> if (n == 1) "climb" else "climbs" }
+                val (message, subText, style) = when (status) {
+                    is ClimbRepository.SyncStatus.Running -> Triple(
+                        "Naming climbs… ${status.named} of ${status.total}",
+                        routeName,
+                        SystemNotification.Style.UPDATE,
+                    )
+                    is ClimbRepository.SyncStatus.WaitingForConnection -> Triple(
+                        "Waiting for a connection · ${status.named} of ${status.total} named",
+                        "Retrying automatically · $routeName",
+                        SystemNotification.Style.UPDATE,
+                    )
+                    is ClimbRepository.SyncStatus.Done -> Triple(
+                        "${status.total} ${plural(status.total)} named",
+                        status.names.joinToString(", ").let { if (it.length > 80) it.take(79) + "…" else it },
+                        SystemNotification.Style.EVENT,
+                    )
+                    is ClimbRepository.SyncStatus.Failed -> Triple(
+                        "Couldn't name ${status.failed} ${plural(status.failed)}",
+                        "Reload the route to try again · $routeName",
+                        SystemNotification.Style.ERROR,
+                    )
+                }
+                karoo.dispatch(
+                    SystemNotification(
+                        id = "climbnamer-sync",
+                        message = message,
+                        subText = subText,
+                        header = "ClimbNamer",
+                        style = style,
+                        action = "Open",
+                        actionIntent = "io.github.bertpinoy.climbnamer.MAIN",
+                    ),
+                )
+            }
     }
 
     // ------------------------------------------------------------------ 3. map labels

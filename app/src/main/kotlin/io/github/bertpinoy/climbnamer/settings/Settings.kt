@@ -17,6 +17,8 @@ data class ClimbSettings(
     val lookupOnRouteLoad: Boolean = true,
     /** Use Nominatim when Overpass is busy. */
     val nominatimFallback: Boolean = true,
+    /** Show the progress of looking up names as a Control Center notification. */
+    val syncNotifications: Boolean = true,
 
     // 1. Data field
     /** Show the next climb in the data field when not on a climb. */
@@ -48,6 +50,7 @@ object SettingsStore {
         return ClimbSettings(
             lookupOnRouteLoad = p.getBoolean("lookupOnRouteLoad", d.lookupOnRouteLoad),
             nominatimFallback = p.getBoolean("nominatimFallback", d.nominatimFallback),
+            syncNotifications = p.getBoolean("syncNotifications", d.syncNotifications),
             fieldShowsNextClimb = p.getBoolean("fieldShowsNextClimb", d.fieldShowsNextClimb),
             alertsEnabled = p.getBoolean("alertsEnabled", d.alertsEnabled),
             alertTiming = runCatching { AlertTiming.valueOf(p.getString("alertTiming", null) ?: "") }
@@ -64,6 +67,7 @@ object SettingsStore {
         prefs(context).edit()
             .putBoolean("lookupOnRouteLoad", s.lookupOnRouteLoad)
             .putBoolean("nominatimFallback", s.nominatimFallback)
+            .putBoolean("syncNotifications", s.syncNotifications)
             .putBoolean("fieldShowsNextClimb", s.fieldShowsNextClimb)
             .putBoolean("alertsEnabled", s.alertsEnabled)
             .putString("alertTiming", s.alertTiming.name)

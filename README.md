@@ -25,6 +25,7 @@ You decide where names appear. Everything can be switched on or off in the Climb
 | 2 | **Alert** with the name when a climb starts | On/off; at the start or 250 m / 500 m / 1 km before; 5, 8 or 15 s; also for unnamed climbs |
 | 3 | **Map labels**: the name as a summit marker at the top of each climb | On/off |
 | | **Looking up names** when a route is loaded | On/off; Nominatim fallback on/off; clear stored names |
+| | **Progress in the Control Center**: "Naming climbs… 1 of 2", "2 climbs named", waiting for a connection | On/off; only shown when names had to be looked up |
 
 The built-in Climber screens themselves can't be changed by extensions, so names appear in
 these three places instead.

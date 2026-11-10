@@ -1,1 +1,1 @@
-The "Climb name" data field uses smaller text that fits the field: sizes now follow the field's height (name at most 22 pt, header and detail lines 10–13 pt) instead of the Karoo's large number size.
+New: ClimbNamer shows the progress of looking up climb names in the Control Center ("Naming climbs… 1 of 2", "2 climbs named", "Waiting for a connection", or what to do if it failed), as one notification that updates in place. It only appears when names had to be looked up, and can be switched off in the app ("Show progress in the Control Center").
