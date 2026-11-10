@@ -1,5 +1,9 @@
 # ClimbNamer for Karoo
 
+[![Build](https://img.shields.io/github/actions/workflow/status/bertpinoy/ClimbNamer-Karoo/build.yml)](https://github.com/bertpinoy/ClimbNamer-Karoo/actions/workflows/build.yml)
+[![Downloads](https://img.shields.io/github/downloads/bertpinoy/ClimbNamer-Karoo/climbnamer.apk)](https://github.com/bertpinoy/ClimbNamer-Karoo/releases)
+[![License](https://img.shields.io/github/license/bertpinoy/ClimbNamer-Karoo)](https://github.com/bertpinoy/ClimbNamer-Karoo/blob/main/LICENSE)
+
 A [Karoo extension](https://github.com/hammerheadnav/karoo-ext) that gives names to the climbs
 on the route you navigate on your Hammerhead Karoo. The Karoo shows climbs as
 "Climb 2 of 5"; ClimbNamer tells you it's the *Kemmelberg*.
@@ -120,5 +124,10 @@ these repository secrets: `SIGNING_KEYSTORE_BASE64`, `SIGNING_KEYSTORE_PASSWORD`
 | `naming/NameCache.kt` | Names stored on the Karoo |
 | `settings/Settings.kt` | All on/off settings |
 | `ui/MainActivity.kt` | Settings screen |
+
+## License
+
+Copyright 2026 bertpinoy. Licensed under the [Apache License 2.0](LICENSE).
+The Gradle wrapper files come from [karoo-ext](https://github.com/hammerheadnav/karoo-ext) (Apache-2.0).
 
 Map data © OpenStreetMap contributors (ODbL).
