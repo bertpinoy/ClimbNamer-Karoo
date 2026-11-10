@@ -1,0 +1,1 @@
+First test release. Names the climbs on the route you navigate, using OpenStreetMap: a "Climb name" data field, an alert with the name when a climb starts, and summit labels on the map. Every feature can be switched on or off in the ClimbNamer app. Names are looked up when a route is loaded and stored on the Karoo.

@@ -64,16 +64,31 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
+          APP_VERSION=$(grep -E 'versionName *=' app/build.gradle.kts | grep -oE '"[^"]+"' | tr -d '"')
           CODE=$(grep -E 'versionCode *=' app/build.gradle.kts | grep -oE '[0-9]+')
-          cat > dist/manifest.json <<EOF
-          {
-            "label": "ClimbNamer",
-            "packageName": "io.github.bertpinoy.climbnamer",
-            "latestApkUrl": "https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/climbnamer.apk",
-            "latestVersion": "${VERSION}",
-            "latestVersionCode": ${CODE},
-            "developer": "bertpinoy",
-            "description": "Names the climbs on your route (OpenStreetMap): data field, climb alerts and map labels. Not affiliated with Hammerhead or SRAM."
-          }
-          EOF
-          gh release create "$GITHUB_REF_NAME" dist/climbnamer.apk dist/manifest.json --title "ClimbNamer $VERSION" --generate-notes
+          if [ "$VERSION" != "$APP_VERSION" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match versionName $APP_VERSION in app/build.gradle.kts"
+            exit 1
+          fi
+          # Application manifest read by Karoo devices (Extension Library and update checks).
+          jq -n \
+            --arg version "$VERSION" \
+            --argjson code "$CODE" \
+            --arg apk "https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/climbnamer.apk" \
+            --arg icon "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/docs/icon-512.png" \
+            --rawfile notes RELEASE_NOTES.md \
+            '{
+              label: "ClimbNamer",
+              packageName: "io.github.bertpinoy.climbnamer",
+              latestApkUrl: $apk,
+              latestVersion: $version,
+              latestVersionCode: $code,
+              iconUrl: $icon,
+              developer: "bertpinoy",
+              description: "Names the climbs on the route you navigate, using OpenStreetMap: a \"Climb name\" data field, an alert when a climb starts, and summit labels on the map. Everything can be switched on or off. Not affiliated with Hammerhead or SRAM.",
+              releaseNotes: ($notes | rtrimstr("\n")),
+              tags: ["performance"]
+            }' > dist/manifest.json
+          cat dist/manifest.json
+          gh release create "$GITHUB_REF_NAME" dist/climbnamer.apk dist/manifest.json \
+            --title "ClimbNamer $VERSION" --notes-file RELEASE_NOTES.md

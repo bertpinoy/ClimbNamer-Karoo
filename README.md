@@ -51,6 +51,16 @@ app as `ClimbNamer-Karoo/<version>`.
 
 ## Install on a Karoo
 
+**Via the Extension Library** (recommended): add this application manifest URL as a new extension
+in your Hammerhead settings. ClimbNamer then appears in the Extension Library on your Karoo and
+receives updates from new releases:
+
+```
+https://github.com/bertpinoy/ClimbNamer-Karoo/releases/latest/download/manifest.json
+```
+
+**Manually:**
+
 1. Download `climbnamer.apk` from the [latest release](https://github.com/bertpinoy/ClimbNamer-Karoo/releases)
    (or the `climbnamer-apk` artifact of the latest [build](https://github.com/bertpinoy/ClimbNamer-Karoo/actions)).
 2. Install it on the Karoo: share the download link with the Hammerhead companion app, or use
