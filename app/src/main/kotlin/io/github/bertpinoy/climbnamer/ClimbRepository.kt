@@ -30,6 +30,8 @@ data class ActiveRoute(
     val name: String,
     val routeDistance: Double,
     val climbs: List<NamedClimb>,
+    /** Length of the approach to the route (m); 0 when navigation started on the route. */
+    val approachLength: Double = 0.0,
     val diagnostics: String = "",
 )
 
@@ -80,6 +82,7 @@ object ClimbRepository {
             name = climbs.name,
             routeDistance = climbs.routeDistance,
             climbs = climbs.climbs.map { NamedClimb(it, cache.get(it)) },
+            approachLength = climbs.approachLength,
             diagnostics = climbs.diagnostics,
         )
         Timber.i("Route '${climbs.name}' with ${climbs.climbs.size} climbs")

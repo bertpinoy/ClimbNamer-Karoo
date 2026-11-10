@@ -159,7 +159,7 @@ private fun SettingsScreen() {
                         color = Orange,
                         fontSize = 11.sp,
                     )
-                    Text(status, color = Mist, fontSize = 11.sp)
+                    Text(if (g.onApproach) "on the way to the start · $status" else status, color = Mist, fontSize = 11.sp)
                 }
             }
         }

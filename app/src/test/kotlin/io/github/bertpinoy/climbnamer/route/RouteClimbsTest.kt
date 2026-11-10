@@ -81,6 +81,35 @@ class RouteClimbsTest {
     }
 
     @Test
+    fun placesClimbsAlongApproachAndRoute() {
+        // Navigation starts ~3 km west of the route: the Karoo measures climbs along
+        // approach (3 km eastwards) + route (10 km northwards), joining the route at 2 km.
+        val approach = (0..30).map { LatLng(origin.lat + 2 * 0.008983, origin.lng - 0.042 + it * 0.0014) }
+        val approachLen = (1 until approach.size).sumOf { Geo.haversine(approach[it - 1], approach[it]) }
+        val climbs = listOf(
+            OnNavigationState.NavigationState.Climb(1000.0, 500.0, 4.0, 20.0), // on the approach
+            OnNavigationState.NavigationState.Climb(approachLen + 2000.0, 2000.0, 5.0, 100.0), // route km 4–6
+        )
+        val result = RouteClimbsBuilder.build(
+            name = "Approach",
+            polyline = encode(straightRoute.map { it.lat to it.lng }, 5),
+            elevationPolyline = null,
+            routeDistance = straightTotal,
+            climbs = climbs,
+            rejoinPolyline = encode(approach.map { it.lat to it.lng }, 5),
+            rejoinDistance = 2000.0,
+        )!!
+        assertEquals(approachLen + straightTotal - 2000.0, result.routeDistance, 1.0)
+        assertEquals(approachLen, result.approachLength, 1.0)
+        val (a, b) = result.climbs
+        assertTrue(a.onApproach)
+        assertTrue("approach climb ~1 km along the approach", abs(Geo.haversine(approach.first(), a.start) - 1000) < 60)
+        assertTrue(!b.onApproach)
+        assertTrue("route climb starts ~4 km north of the route start", abs(Geo.haversine(origin, b.start) - 4000) < 60)
+        assertTrue(result.diagnostics.contains("approach"))
+    }
+
+    @Test
     fun detectsSwappedProfile() {
         // Pairs given as (elevation, distance) instead of (distance, elevation).
         val profile = (0..100).map { i ->

@@ -29,7 +29,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.distinctUntilChangedBy
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import kotlin.math.min
@@ -73,8 +73,22 @@ class ClimbNamerExtension : KarooExtension("climbnamer", BuildConfig.VERSION_NAM
     // ------------------------------------------------------------------ route + names
 
     private fun watchRoute() = scope.launch {
-        // Only rebuild when the route or its climbs change (not on every rejoin update).
-        val navigation = karoo.consumerFlow<OnNavigationState>().distinctUntilChangedBy { navKey(it.state) }
+        // Rebuild when the route or its climbs change, or when the approach to the route
+        // (rejoin path) becomes known for the same climbs. Not on every rejoin update, and not
+        // when the approach disappears after joining the route: the climb distances still count
+        // from where navigation started.
+        var lastKey: String? = null
+        var lastHadApproach = false
+        val navigation = karoo.consumerFlow<OnNavigationState>().filter { nav ->
+            val key = navKey(nav.state)
+            val hasApproach = (nav.state as? OnNavigationState.NavigationState.NavigatingRoute)?.rejoinPolyline != null
+            val rebuild = key != lastKey || (hasApproach && !lastHadApproach)
+            if (rebuild) {
+                lastKey = key
+                lastHadApproach = hasApproach
+            }
+            rebuild
+        }
         combine(navigation, SettingsStore.flow(applicationContext)) { nav, settings -> nav to settings }
             .collect { (nav, settings) ->
                 val climbs = runCatching { RouteClimbsBuilder.fromNavigation(nav.state) }
@@ -99,13 +113,18 @@ class ClimbNamerExtension : KarooExtension("climbnamer", BuildConfig.VERSION_NAM
         else -> "idle"
     }
 
-    /** Distance along the route = route distance − distance to destination. */
+    /**
+     * Distance along the navigated path = path length − distance to destination.
+     * The path includes the approach when navigation started away from the route, so the
+     * position is also used on the way to the start (off route); otherwise only on route.
+     */
     private fun watchProgress() = scope.launch {
         combine(karoo.streamDataFlow(DataType.Type.DISTANCE_TO_DESTINATION), ClimbRepository.route) { state, route ->
             val values = (state as? StreamState.Streaming)?.dataPoint?.values
             val toGo = values?.get(DataType.Field.DISTANCE_TO_DESTINATION)
             val onRoute = values?.get(DataType.Field.ON_ROUTE)?.let { it > 0.5 } ?: true
-            if (route == null || toGo == null || !onRoute) null else (route.routeDistance - toGo).coerceAtLeast(0.0)
+            val usable = route != null && toGo != null && (onRoute || route.approachLength > 0)
+            if (!usable) null else (route!!.routeDistance - toGo!!).coerceAtLeast(0.0)
         }.collect { ClimbRepository.setProgress(it) }
     }
 

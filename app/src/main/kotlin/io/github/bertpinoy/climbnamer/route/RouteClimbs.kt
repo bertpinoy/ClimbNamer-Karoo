@@ -9,7 +9,7 @@ import kotlin.math.max
 data class ClimbGeo(
     /** 0-based index in route order. */
     val index: Int,
-    /** Distance along the route where the climb starts (m), as reported by the Karoo. */
+    /** Distance along the navigated path where the climb starts (m), as reported by the Karoo. */
     val startDistance: Double,
     val length: Double,
     val grade: Double,
@@ -20,6 +20,8 @@ data class ClimbGeo(
     val topElevation: Double?,
     /** Points along the climb, roughly every 25 m (max ~80). */
     val points: List<LatLng>,
+    /** True when the climb is on the way to the start of the route (the approach). */
+    val onApproach: Boolean = false,
 ) {
     val endDistance: Double get() = startDistance + length
 }
@@ -29,8 +31,14 @@ data class RouteClimbs(
     /** Identifies the route; changes when another route is loaded. */
     val key: String,
     val name: String,
+    /**
+     * Length of the whole navigated path (m): approach + route from where it is joined.
+     * Climb distances and progress are measured along this path.
+     */
     val routeDistance: Double,
     val climbs: List<ClimbGeo>,
+    /** Length of the approach to the route (m); 0 when already on the route. */
+    val approachLength: Double = 0.0,
     /** What ClimbNamer received from the Karoo, shown in the app for troubleshooting. */
     val diagnostics: String = "",
 )
@@ -48,6 +56,8 @@ object RouteClimbsBuilder {
             routeDistance = state.routeDistance,
             climbs = state.climbs,
             reversed = state.reversed,
+            rejoinPolyline = state.rejoinPolyline,
+            rejoinDistance = state.rejoinDistance,
         )
         is OnNavigationState.NavigationState.NavigatingToDestination -> build(
             name = state.destination.name ?: "Destination",
@@ -59,6 +69,11 @@ object RouteClimbsBuilder {
         else -> null
     }
 
+    /**
+     * When the rider is not on the route yet, the Karoo first guides them to it along
+     * [rejoinPolyline], joining the route at [rejoinDistance]. The Karoo then reports climbs
+     * along that whole path (approach + route from the join point), so climbs are placed on it.
+     */
     fun build(
         name: String,
         polyline: String,
@@ -66,42 +81,40 @@ object RouteClimbsBuilder {
         routeDistance: Double?,
         climbs: List<OnNavigationState.NavigationState.Climb>,
         reversed: Boolean = false,
+        rejoinPolyline: String? = null,
+        rejoinDistance: Double? = null,
     ): RouteClimbs? {
         if (climbs.isEmpty()) return null
-        val coords = Geo.decodePolyline(polyline, 5).map { LatLng(it.first, it.second) }
-        if (coords.size < 2) return null
+        val route = Path.of(Geo.decodePolyline(polyline, 5).map { LatLng(it.first, it.second) }) ?: return null
+        val routeTotal = routeDistance?.takeIf { it > 0 } ?: route.length
+        // Karoo route distances and our geometric distances differ slightly: scale to match.
+        val routeScale = if (route.length > 0) route.length / routeTotal else 1.0
 
-        val cum = DoubleArray(coords.size)
-        for (i in 1 until coords.size) cum[i] = cum[i - 1] + Geo.haversine(coords[i - 1], coords[i])
-        val geoLength = cum.last()
-        val total = routeDistance?.takeIf { it > 0 } ?: geoLength
-        // Karoo distances and our geometric distances differ slightly: scale to match.
-        val scale = if (geoLength > 0) geoLength / total else 1.0
+        val approach = rejoinPolyline?.takeIf { it.isNotEmpty() }
+            ?.let { Path.of(Geo.decodePolyline(it, 5).map { p -> LatLng(p.first, p.second) }) }
+        val approachLength = approach?.length ?: 0.0
+        val joinAt = if (approach != null) (rejoinDistance ?: 0.0).coerceIn(0.0, routeTotal) else 0.0
+        val total = approachLength + (routeTotal - joinAt)
 
-        // Climbs are placed along the polyline in the order the Karoo gives it, from its start.
-        // (An earlier version tried to detect reversed data from the elevation profile; that
-        // guess could flip the route and put climbs at the wrong place.)
-        val (profile, profileStatus) = readProfile(elevationPolyline, total)
-
+        /** Position along the navigated path: approach first, then the route from the join point. */
         fun pointAt(distance: Double): LatLng {
-            val d = distance.coerceIn(0.0, total) * scale
-            var lo = 0
-            var hi = cum.size - 1
-            while (hi - lo > 1) {
-                val mid = (lo + hi) / 2
-                if (cum[mid] <= d) lo = mid else hi = mid
+            val d = distance.coerceIn(0.0, total)
+            return if (approach != null && d < approachLength) {
+                approach.pointAt(d)
+            } else {
+                route.pointAt((d - approachLength + joinAt) * routeScale)
             }
-            val span = cum[hi] - cum[lo]
-            val t = if (span > 0) (d - cum[lo]) / span else 0.0
-            val a = coords[lo]
-            val b = coords[hi]
-            return LatLng(a.lat + (b.lat - a.lat) * t, a.lng + (b.lng - a.lng) * t)
         }
+
+        // The elevation profile covers the route only (not the approach).
+        val (profile, profileStatus) = readProfile(elevationPolyline, routeTotal)
 
         fun elevationAt(distance: Double): Double? {
             val p = profile ?: return null
+            if (distance < approachLength) return null
+            val routeD = distance - approachLength + joinAt
             var best = p[0]
-            for (pt in p) if (abs(pt.first - distance) < abs(best.first - distance)) best = pt
+            for (pt in p) if (abs(pt.first - routeD) < abs(best.first - routeD)) best = pt
             return best.second
         }
 
@@ -114,7 +127,7 @@ object RouteClimbsBuilder {
             var topDist = end
             var topEle: Double? = null
             for (s in samples) {
-                val e = elevationAt(s) ?: break
+                val e = elevationAt(s) ?: continue
                 if (topEle == null || e > topEle) {
                     topEle = e
                     topDist = s
@@ -130,19 +143,29 @@ object RouteClimbsBuilder {
                 top = pointAt(topDist),
                 topElevation = topEle,
                 points = samples.map { pointAt(it) },
+                onApproach = approach != null && start < approachLength,
             )
         }
-        val diagnostics = String.format(
-            Locale.US,
-            "route %.1f km (polyline %.1f km) · %d climbs · elevation profile %s · reversed=%s",
-            total / 1000,
-            geoLength / 1000,
-            climbs.size,
-            profileStatus.name.lowercase(Locale.US),
-            reversed,
+
+        val beyond = climbs.count { it.startDistance + it.length > total * 1.02 }
+        val diagnostics = buildString {
+            append(String.format(Locale.US, "route %.1f km (polyline %.1f km)", routeTotal / 1000, route.length / 1000))
+            if (approach != null) {
+                append(String.format(Locale.US, " · approach %.1f km, joins route at %.1f km", approachLength / 1000, joinAt / 1000))
+            }
+            append(" · ${climbs.size} climbs")
+            if (beyond > 0) append(" ($beyond beyond the end!)")
+            append(" · elevation profile ${profileStatus.name.lowercase(Locale.US)} · reversed=$reversed")
+        }
+        val key = "${polyline.hashCode()}:${climbs.hashCode()}:${total.toInt()}"
+        return RouteClimbs(
+            key = key,
+            name = name,
+            routeDistance = total,
+            climbs = result,
+            approachLength = approachLength,
+            diagnostics = diagnostics,
         )
-        val key = "${polyline.hashCode()}:${climbs.size}:${total.toInt()}"
-        return RouteClimbs(key = key, name = name, routeDistance = total, climbs = result, diagnostics = diagnostics)
     }
 
     /**
@@ -167,6 +190,35 @@ object RouteClimbsBuilder {
             plausibleDistances(seconds) && plausibleElevations(firsts) ->
                 raw.map { it.second to it.first } to ProfileStatus.SWAPPED
             else -> null to ProfileStatus.UNUSABLE
+        }
+    }
+}
+
+/** A polyline with cumulative distances, for finding the point at a given distance. */
+class Path private constructor(private val coords: List<LatLng>, private val cum: DoubleArray) {
+    val length: Double get() = cum.last()
+
+    fun pointAt(distance: Double): LatLng {
+        val d = distance.coerceIn(0.0, length)
+        var lo = 0
+        var hi = cum.size - 1
+        while (hi - lo > 1) {
+            val mid = (lo + hi) / 2
+            if (cum[mid] <= d) lo = mid else hi = mid
+        }
+        val span = cum[hi] - cum[lo]
+        val t = if (span > 0) (d - cum[lo]) / span else 0.0
+        val a = coords[lo]
+        val b = coords[hi]
+        return LatLng(a.lat + (b.lat - a.lat) * t, a.lng + (b.lng - a.lng) * t)
+    }
+
+    companion object {
+        fun of(coords: List<LatLng>): Path? {
+            if (coords.size < 2) return null
+            val cum = DoubleArray(coords.size)
+            for (i in 1 until coords.size) cum[i] = cum[i - 1] + Geo.haversine(coords[i - 1], coords[i])
+            return Path(coords, cum)
         }
     }
 }
