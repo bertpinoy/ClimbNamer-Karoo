@@ -179,7 +179,7 @@ class ClimbNamerExtension : KarooExtension("climbnamer", BuildConfig.VERSION_NAM
             karoo.dispatch(
                 InRideAlert(
                     id = "climbnamer-${g.index}",
-                    icon = R.drawable.ic_climb,
+                    icon = R.drawable.ic_climb_alert,
                     title = title,
                     detail = detail,
                     autoDismissMs = settings.alertSeconds * 1000L,

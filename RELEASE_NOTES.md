@@ -1,1 +1,1 @@
-New: ClimbNamer shows the progress of looking up climb names in the Control Center ("Naming climbs… 1 of 2", "2 climbs named", "Waiting for a connection", or what to do if it failed), as one notification that updates in place. It only appears when names had to be looked up, and can be switched off in the app ("Show progress in the Control Center").
+The ClimbNamer icon now shows in front of the "Climb name" data field and the extension in the ride profile lists (it was white on a white background). The climb alert keeps the white icon on its dark background.
