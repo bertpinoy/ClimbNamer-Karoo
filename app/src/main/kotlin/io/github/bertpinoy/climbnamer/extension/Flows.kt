@@ -10,12 +10,12 @@ import kotlinx.coroutines.flow.callbackFlow
 
 /** Karoo events as a Flow (default params). */
 inline fun <reified T : KarooEvent> KarooSystemService.consumerFlow(): Flow<T> = callbackFlow {
-    val id = addConsumer<T> { trySend(it) }
+    val id: String = addConsumer<T> { trySend(it) }
     awaitClose { removeConsumer(id) }
 }
 
 /** Streaming values of a Karoo data type as a Flow. */
 fun KarooSystemService.streamDataFlow(dataTypeId: String): Flow<StreamState> = callbackFlow {
-    val id = addConsumer<OnStreamState>(OnStreamState.StartStreaming(dataTypeId)) { trySend(it.state) }
+    val id: String = addConsumer<OnStreamState>(OnStreamState.StartStreaming(dataTypeId)) { trySend(it.state) }
     awaitClose { removeConsumer(id) }
 }

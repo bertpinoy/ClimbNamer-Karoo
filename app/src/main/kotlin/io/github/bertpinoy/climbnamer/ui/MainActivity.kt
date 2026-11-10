@@ -44,15 +44,19 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.bertpinoy.climbnamer.ClimbRepository
+import io.github.bertpinoy.climbnamer.route.ClimbGeo
+import io.github.bertpinoy.climbnamer.Units
+import io.github.bertpinoy.climbnamer.ActiveRoute
+import android.content.Context
 import io.github.bertpinoy.climbnamer.naming.NameCache
 import io.github.bertpinoy.climbnamer.settings.AlertTiming
 import io.github.bertpinoy.climbnamer.settings.ClimbSettings
 import io.github.bertpinoy.climbnamer.settings.SettingsStore
 
-private val Orange = Color(0xFFFF6B1A)
-private val Navy = Color(0xFF0C1220)
-private val Slate = Color(0xFF1E2940)
-private val Mist = Color(0xFF94A3B8)
+private val Orange: Color = Color(0xFFFF6B1A)
+private val Navy: Color = Color(0xFF0C1220)
+private val Slate: Color = Color(0xFF1E2940)
+private val Mist: Color = Color(0xFF94A3B8)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -67,14 +71,14 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun SettingsScreen() {
-    val context = LocalContext.current
-    val settings by remember { SettingsStore.flow(context) }.collectAsState(initial = SettingsStore.get(context))
-    val route by ClimbRepository.route.collectAsState()
-    val units by ClimbRepository.units.collectAsState()
-    val cache = remember { NameCache(context) }
-    var cacheSize by remember { mutableIntStateOf(cache.size) }
+    val context: Context = LocalContext.current
+    val settings: ClimbSettings by remember { SettingsStore.flow(context) }.collectAsState(initial = SettingsStore.get(context))
+    val route: ActiveRoute? by ClimbRepository.route.collectAsState()
+    val units: Units by ClimbRepository.units.collectAsState()
+    val cache: NameCache = remember { NameCache(context) }
+    var cacheSize: Int by remember { mutableIntStateOf(cache.size) }
 
-    fun update(change: (ClimbSettings) -> ClimbSettings) = SettingsStore.update(context, change)
+    fun update(change: (ClimbSettings) -> ClimbSettings): Unit = SettingsStore.update(context, change)
 
     Column(
         Modifier
@@ -142,20 +146,20 @@ private fun SettingsScreen() {
         }
 
         Section("Current route")
-        val r = route
+        val r: ActiveRoute? = route
         if (r == null) {
             Text("No route with climbs loaded.", color = Mist, fontSize = 13.sp)
         } else {
             Text("${r.name} · ${r.climbs.size} climbs", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
             if (r.diagnostics.isNotEmpty()) Text(r.diagnostics, color = Mist, fontSize = 10.sp)
             r.climbs.forEach { c ->
-                val status = when {
+                val status: String = when {
                     c.name != null -> c.name.detail.ifEmpty { c.name.source }
                     c.lookupFailed && c.retrying -> "no connection yet · will retry"
                     c.lookupFailed -> "lookup failed · reload the route to try again"
                     else -> "looking up…"
                 }
-                val g = c.geo
+                val g: ClimbGeo = c.geo
                 Column(Modifier.padding(vertical = 3.dp)) {
                     Text("${g.index + 1}. ${c.label}", color = Color.White, fontSize = 13.sp)
                     Text(

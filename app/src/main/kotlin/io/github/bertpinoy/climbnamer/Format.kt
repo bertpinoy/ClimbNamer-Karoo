@@ -5,7 +5,7 @@ import java.util.Locale
 /** Formats distances/elevations in the rider's preferred units. */
 data class Units(val imperialDistance: Boolean = false, val imperialElevation: Boolean = false) {
     fun distance(m: Double): String = if (imperialDistance) {
-        val mi = m / 1609.344
+        val mi: Double = m / 1609.344
         if (mi < 0.1) String.format(Locale.US, "%d ft", (m * 3.28084).toInt()) else String.format(Locale.US, "%.1f mi", mi)
     } else {
         if (m < 1000) String.format(Locale.US, "%d m", m.toInt()) else String.format(Locale.US, "%.1f km", m / 1000)

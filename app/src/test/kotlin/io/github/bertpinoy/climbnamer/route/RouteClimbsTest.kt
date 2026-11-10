@@ -13,7 +13,7 @@ class RouteClimbsTest {
     @Test
     fun decodesGooglePolylineExample() {
         // Example from Google's polyline documentation.
-        val pts = Geo.decodePolyline("_p~iF~ps|U_ulLnnqC_mqNvxq`@", 5)
+        val pts: List<Pair<Double, Double>> = Geo.decodePolyline("_p~iF~ps|U_ulLnnqC_mqNvxq`@", 5)
         assertEquals(3, pts.size)
         assertEquals(38.5, pts[0].first, 1e-6)
         assertEquals(-120.2, pts[0].second, 1e-6)
@@ -23,8 +23,8 @@ class RouteClimbsTest {
 
     @Test
     fun encodeDecodeRoundTripPrecision1() {
-        val pairs = listOf(0.0 to 30.2, 120.5 to 31.0, 980.3 to 75.4)
-        val back = Geo.decodePolyline(encode(pairs, 1), 1)
+        val pairs: List<Pair<Double, Double>> = listOf(0.0 to 30.2, 120.5 to 31.0, 980.3 to 75.4)
+        val back: List<Pair<Double, Double>> = Geo.decodePolyline(encode(pairs, 1), 1)
         pairs.zip(back).forEach { (a, b) ->
             assertEquals(a.first, b.first, 0.05)
             assertEquals(a.second, b.second, 0.05)
@@ -34,20 +34,20 @@ class RouteClimbsTest {
     @Test
     fun locatesClimbAndTopAlongRoute() {
         // A straight 10 km route due north; a climb from 4 km to 6 km, highest at 6 km.
-        val start = LatLng(50.0, 3.0)
-        val route = (0..100).map { LatLng(start.lat + it * 0.0008983, start.lng) } // ~100 m steps
-        val total = (1 until route.size).sumOf { Geo.haversine(route[it - 1], route[it]) }
-        val profile = (0..100).map { i ->
-            val d = i * total / 100
-            val e = when {
+        val start: LatLng = LatLng(50.0, 3.0)
+        val route: List<LatLng> = (0..100).map { LatLng(start.lat + it * 0.0008983, start.lng) } // ~100 m steps
+        val total: Double = (1 until route.size).sumOf { Geo.haversine(route[it - 1], route[it]) }
+        val profile: List<Pair<Double, Double>> = (0..100).map { i ->
+            val d: Double = i * total / 100
+            val e: Double = when {
                 d < 4000 -> 50.0
                 d < 6000 -> 50.0 + (d - 4000) * 0.05
                 else -> 150.0 - (d - 6000) * 0.01
             }
             d to e
         }
-        val climbs = listOf(OnNavigationState.NavigationState.Climb(4000.0, 2000.0, 5.0, 100.0))
-        val result = RouteClimbsBuilder.build(
+        val climbs: List<OnNavigationState.NavigationState.Climb> = listOf(OnNavigationState.NavigationState.Climb(4000.0, 2000.0, 5.0, 100.0))
+        val result: RouteClimbs? = RouteClimbsBuilder.build(
             name = "Test",
             polyline = encode(route.map { it.lat to it.lng }, 5),
             elevationPolyline = encode(profile, 1),
@@ -55,28 +55,28 @@ class RouteClimbsTest {
             climbs = climbs,
         )
         assertNotNull(result)
-        val c = result!!.climbs.single()
+        val c: ClimbGeo = result!!.climbs.single()
         assertTrue("start ~4 km north", abs(Geo.haversine(start, c.start) - 4000) < 60)
         assertTrue("top ~6 km north", abs(Geo.haversine(start, c.top) - 6000) < 60)
         assertTrue(c.points.size > 10)
     }
 
-    private val origin = LatLng(50.0, 3.0)
-    private val straightRoute = (0..100).map { LatLng(origin.lat + it * 0.0008983, origin.lng) } // ~100 m steps
-    private val straightTotal = (1 until straightRoute.size).sumOf { Geo.haversine(straightRoute[it - 1], straightRoute[it]) }
-    private val oneClimb = listOf(OnNavigationState.NavigationState.Climb(4000.0, 2000.0, 5.0, 100.0))
+    private val origin: LatLng = LatLng(50.0, 3.0)
+    private val straightRoute: List<LatLng> = (0..100).map { LatLng(origin.lat + it * 0.0008983, origin.lng) } // ~100 m steps
+    private val straightTotal: Double = (1 until straightRoute.size).sumOf { Geo.haversine(straightRoute[it - 1], straightRoute[it]) }
+    private val oneClimb: List<OnNavigationState.NavigationState.Climb> = listOf(OnNavigationState.NavigationState.Climb(4000.0, 2000.0, 5.0, 100.0))
 
     @Test
     fun neverFlipsTheRoute() {
         // Elevation profile that only "climbs" when read backwards: the climb must still be
         // placed 4 km from the START (regression: 0.1.0 flipped it to 4 km before the finish).
-        val profile = (0..100).map { i ->
-            val d = i * straightTotal / 100
-            val r = straightTotal - d
+        val profile: List<Pair<Double, Double>> = (0..100).map { i ->
+            val d: Double = i * straightTotal / 100
+            val r: Double = straightTotal - d
             d to (if (r in 4000.0..6000.0) 50.0 + (r - 4000) * 0.05 else if (r > 6000) 150.0 else 50.0)
         }
-        val result = RouteClimbsBuilder.build("NoFlip", encode(straightRoute.map { it.lat to it.lng }, 5), encode(profile, 1), straightTotal, oneClimb)
-        val c = result!!.climbs.single()
+        val result: RouteClimbs? = RouteClimbsBuilder.build("NoFlip", encode(straightRoute.map { it.lat to it.lng }, 5), encode(profile, 1), straightTotal, oneClimb)
+        val c: ClimbGeo = result!!.climbs.single()
         assertTrue(abs(Geo.haversine(origin, c.start) - 4000) < 60)
     }
 
@@ -84,13 +84,13 @@ class RouteClimbsTest {
     fun placesClimbsAlongApproachAndRoute() {
         // Navigation starts ~3 km west of the route: the Karoo measures climbs along
         // approach (3 km eastwards) + route (10 km northwards), joining the route at 2 km.
-        val approach = (0..30).map { LatLng(origin.lat + 2 * 0.008983, origin.lng - 0.042 + it * 0.0014) }
-        val approachLen = (1 until approach.size).sumOf { Geo.haversine(approach[it - 1], approach[it]) }
-        val climbs = listOf(
+        val approach: List<LatLng> = (0..30).map { LatLng(origin.lat + 2 * 0.008983, origin.lng - 0.042 + it * 0.0014) }
+        val approachLen: Double = (1 until approach.size).sumOf { Geo.haversine(approach[it - 1], approach[it]) }
+        val climbs: List<OnNavigationState.NavigationState.Climb> = listOf(
             OnNavigationState.NavigationState.Climb(1000.0, 500.0, 4.0, 20.0), // on the approach
             OnNavigationState.NavigationState.Climb(approachLen + 2000.0, 2000.0, 5.0, 100.0), // route km 4–6
         )
-        val result = RouteClimbsBuilder.build(
+        val result: RouteClimbs = RouteClimbsBuilder.build(
             name = "Approach",
             polyline = encode(straightRoute.map { it.lat to it.lng }, 5),
             elevationPolyline = null,
@@ -100,10 +100,10 @@ class RouteClimbsTest {
             rejoinDistance = 2000.0,
         )!!
         // The join point is measured on the map (≈ 2 km, the end of the approach).
-        val joinAt = Geo.haversine(origin, approach.last())
+        val joinAt: Double = Geo.haversine(origin, approach.last())
         assertEquals(approachLen + straightTotal - joinAt, result.routeDistance, 5.0)
         assertEquals(approachLen, result.approachLength, 1.0)
-        val (a, b) = result.climbs
+        val (a: ClimbGeo, b: ClimbGeo) = result.climbs
         assertTrue(a.onApproach)
         assertTrue("approach climb ~1 km along the approach", abs(Geo.haversine(approach.first(), a.start) - 1000) < 60)
         assertTrue(!b.onApproach)
@@ -115,11 +115,11 @@ class RouteClimbsTest {
     fun joinPointComesFromTheMapNotFromRejoinDistance() {
         // Seen on a Karoo: the approach joins the route at ~4 km, but rejoinDistance says the
         // route's end. A climb 500 m after the join must be placed at route km 4.5.
-        val join = straightRoute[40] // ~4 km
-        val approach = (0..30).map { LatLng(join.lat, join.lng - 0.042 + it * 0.0014) } // ~3 km east, ends at join
-        val approachLen = (1 until approach.size).sumOf { Geo.haversine(approach[it - 1], approach[it]) }
-        val climbs = listOf(OnNavigationState.NavigationState.Climb(approachLen + 500.0, 1000.0, 5.0, 50.0))
-        val result = RouteClimbsBuilder.build(
+        val join: LatLng = straightRoute[40] // ~4 km
+        val approach: List<LatLng> = (0..30).map { LatLng(join.lat, join.lng - 0.042 + it * 0.0014) } // ~3 km east, ends at join
+        val approachLen: Double = (1 until approach.size).sumOf { Geo.haversine(approach[it - 1], approach[it]) }
+        val climbs: List<OnNavigationState.NavigationState.Climb> = listOf(OnNavigationState.NavigationState.Climb(approachLen + 500.0, 1000.0, 5.0, 50.0))
+        val result: RouteClimbs = RouteClimbsBuilder.build(
             name = "Mid-route join",
             polyline = encode(straightRoute.map { it.lat to it.lng }, 5),
             elevationPolyline = null,
@@ -128,7 +128,7 @@ class RouteClimbsTest {
             rejoinPolyline = encode(approach.map { it.lat to it.lng }, 5),
             rejoinDistance = straightTotal, // what the Karoo reported
         )!!
-        val c = result.climbs.single()
+        val c: ClimbGeo = result.climbs.single()
         assertTrue(!c.onApproach)
         assertTrue("starts ~4.5 km from the route start", abs(Geo.haversine(origin, c.start) - 4500) < 80)
         assertEquals(approachLen + straightTotal - Geo.haversine(origin, join), result.routeDistance, 80.0)
@@ -138,8 +138,8 @@ class RouteClimbsTest {
     @Test
     fun joiningALoopAtItsSharedStartEndPicksTheStart() {
         // A loop: out 5 km north, back 5 km south, ending where it started.
-        val loop = straightRoute.take(51) + straightRoute.take(50).reversed()
-        val path = Path.of(loop)!!
+        val loop: List<LatLng> = straightRoute.take(51) + straightRoute.take(50).reversed()
+        val path: Path = Path.of(loop)!!
         assertEquals(0.0, path.closestDistanceTo(origin), 1.0)
     }
 
@@ -148,11 +148,11 @@ class RouteClimbsTest {
         // Loop route joined at its end: the path is the approach only, and the last climb
         // runs 1 km past it. Its points must not pile up at the end of the path.
         // ~3 km eastwards, ending at the route's end point (where it is joined)
-        val end = straightRoute.last()
-        val approach = (0..30).map { LatLng(end.lat, end.lng - 0.042 + it * 0.0014) }
-        val approachLen = (1 until approach.size).sumOf { Geo.haversine(approach[it - 1], approach[it]) }
-        val climbs = listOf(OnNavigationState.NavigationState.Climb(approachLen - 500.0, 1500.0, 4.0, 60.0))
-        val result = RouteClimbsBuilder.build(
+        val end: LatLng = straightRoute.last()
+        val approach: List<LatLng> = (0..30).map { LatLng(end.lat, end.lng - 0.042 + it * 0.0014) }
+        val approachLen: Double = (1 until approach.size).sumOf { Geo.haversine(approach[it - 1], approach[it]) }
+        val climbs: List<OnNavigationState.NavigationState.Climb> = listOf(OnNavigationState.NavigationState.Climb(approachLen - 500.0, 1500.0, 4.0, 60.0))
+        val result: RouteClimbs = RouteClimbsBuilder.build(
             name = "Loop",
             polyline = encode(straightRoute.map { it.lat to it.lng }, 5),
             elevationPolyline = null,
@@ -161,9 +161,9 @@ class RouteClimbsTest {
             rejoinPolyline = encode(approach.map { it.lat to it.lng }, 5),
             rejoinDistance = straightTotal, // joins at the END of the route
         )!!
-        val c = result.climbs.single()
+        val c: ClimbGeo = result.climbs.single()
         // Only the last 500 m of the approach: about 20 samples, none duplicated at the end.
-        val atEnd = c.points.count { Geo.haversine(it, approach.last()) < 1.0 }
+        val atEnd: Int = c.points.count { Geo.haversine(it, approach.last()) < 1.0 }
         assertEquals(1, atEnd)
         assertTrue(result.diagnostics.contains("beyond the end"))
     }
@@ -171,30 +171,30 @@ class RouteClimbsTest {
     @Test
     fun detectsSwappedProfile() {
         // Pairs given as (elevation, distance) instead of (distance, elevation).
-        val profile = (0..100).map { i ->
-            val d = i * straightTotal / 100
-            val e = when {
+        val profile: List<Pair<Double, Double>> = (0..100).map { i ->
+            val d: Double = i * straightTotal / 100
+            val e: Double = when {
                 d < 4000 -> 50.0
                 d < 5000 -> 50.0 + (d - 4000) * 0.1
                 else -> 150.0 - (d - 5000) * 0.01
             }
             e to d
         }
-        val (parsed, status) = RouteClimbsBuilder.readProfile(encode(profile, 1), straightTotal)
+        val (parsed: List<Pair<Double, Double>>?, status: ProfileStatus) = RouteClimbsBuilder.readProfile(encode(profile, 1), straightTotal)
         assertEquals(ProfileStatus.SWAPPED, status)
         assertNotNull(parsed)
-        val result = RouteClimbsBuilder.build("Swapped", encode(straightRoute.map { it.lat to it.lng }, 5), encode(profile, 1), straightTotal, oneClimb)
+        val result: RouteClimbs? = RouteClimbsBuilder.build("Swapped", encode(straightRoute.map { it.lat to it.lng }, 5), encode(profile, 1), straightTotal, oneClimb)
         // Highest point at 5 km, not at the climb's end (6 km).
         assertTrue(abs(Geo.haversine(origin, result!!.climbs.single().top) - 5000) < 60)
     }
 
     @Test
     fun ignoresUnusableProfile() {
-        val garbage = (0..50).map { (it * 37 % 11).toDouble() to (it * 1000.0) * -1 }
-        val (_, status) = RouteClimbsBuilder.readProfile(encode(garbage, 1), straightTotal)
+        val garbage: List<Pair<Double, Double>> = (0..50).map { (it * 37 % 11).toDouble() to (it * 1000.0) * -1 }
+        val status: ProfileStatus = RouteClimbsBuilder.readProfile(encode(garbage, 1), straightTotal).second
         assertEquals(ProfileStatus.UNUSABLE, status)
-        val result = RouteClimbsBuilder.build("Garbage", encode(straightRoute.map { it.lat to it.lng }, 5), encode(garbage, 1), straightTotal, oneClimb)
-        val c = result!!.climbs.single()
+        val result: RouteClimbs? = RouteClimbsBuilder.build("Garbage", encode(straightRoute.map { it.lat to it.lng }, 5), encode(garbage, 1), straightTotal, oneClimb)
+        val c: ClimbGeo = result!!.climbs.single()
         // Without a usable profile the top is the climb's end (6 km).
         assertTrue(abs(Geo.haversine(origin, c.top) - 6000) < 60)
         assertTrue(result.diagnostics.contains("unusable"))
@@ -202,12 +202,12 @@ class RouteClimbsTest {
 
     /** Minimal Google polyline encoder for tests. */
     private fun encode(points: List<Pair<Double, Double>>, precision: Int): String {
-        val factor = Math.pow(10.0, precision.toDouble())
-        val sb = StringBuilder()
-        var pa = 0L
-        var pb = 0L
+        val factor: Double = Math.pow(10.0, precision.toDouble())
+        val sb: StringBuilder = StringBuilder()
+        var pa: Long = 0L
+        var pb: Long = 0L
         fun enc(v: Long) {
-            var x = if (v < 0) (v shl 1).inv() else v shl 1
+            var x: Long = if (v < 0) (v shl 1).inv() else v shl 1
             while (x >= 0x20) {
                 sb.append(((0x20 or (x and 0x1f).toInt()) + 63).toChar())
                 x = x shr 5
@@ -215,8 +215,8 @@ class RouteClimbsTest {
             sb.append((x + 63).toInt().toChar())
         }
         for ((a, b) in points) {
-            val ia = (a * factor).roundToLong()
-            val ib = (b * factor).roundToLong()
+            val ia: Long = (a * factor).roundToLong()
+            val ib: Long = (b * factor).roundToLong()
             enc(ia - pa)
             enc(ib - pb)
             pa = ia

@@ -20,6 +20,8 @@ import androidx.glance.text.TextAlign
 import androidx.glance.text.TextStyle
 import io.github.bertpinoy.climbnamer.ActiveRoute
 import io.github.bertpinoy.climbnamer.ClimbRepository
+import io.github.bertpinoy.climbnamer.route.ClimbGeo
+import io.github.bertpinoy.climbnamer.NamedClimb
 import io.github.bertpinoy.climbnamer.Progress
 import io.github.bertpinoy.climbnamer.Units
 import io.github.bertpinoy.climbnamer.settings.ClimbSettings
@@ -34,6 +36,7 @@ import io.hammerhead.karooext.models.UpdateGraphicConfig
 import io.hammerhead.karooext.models.ViewConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
@@ -46,11 +49,11 @@ data class FieldContent(val header: String, val title: String, val detail: Strin
  */
 @OptIn(ExperimentalGlanceRemoteViewsApi::class)
 class ClimbNameDataType(extension: String) : DataTypeImpl(extension, "climb-name") {
-    private val glance = GlanceRemoteViews()
+    private val glance: GlanceRemoteViews = GlanceRemoteViews()
 
     /** Streams the current climb number (0 when not on a climb), for completeness. */
     override fun startStream(emitter: Emitter<StreamState>) {
-        val job = CoroutineScope(Dispatchers.IO).launch {
+        val job: Job = CoroutineScope(Dispatchers.IO).launch {
             combine(ClimbRepository.route, ClimbRepository.progress) { r, p -> ClimbRepository.currentClimb(r, p) }
                 .collect { climb ->
                     emitter.onNext(
@@ -65,7 +68,7 @@ class ClimbNameDataType(extension: String) : DataTypeImpl(extension, "climb-name
 
     override fun startView(context: Context, config: ViewConfig, emitter: ViewEmitter) {
         emitter.onNext(UpdateGraphicConfig(showHeader = false))
-        val job = CoroutineScope(Dispatchers.IO).launch {
+        val job: Job = CoroutineScope(Dispatchers.IO).launch {
             if (config.preview) {
                 render(context, config, emitter, FieldContent("CLIMB 3/3", "Kemmelberg", "1.2 km to go · 3.8%"))
                 return@launch
@@ -83,11 +86,11 @@ class ClimbNameDataType(extension: String) : DataTypeImpl(extension, "climb-name
 
     private fun content(route: ActiveRoute?, progress: Progress, settings: ClimbSettings, units: Units): FieldContent {
         if (route == null) return FieldContent("CLIMB", "No climbs", "Load a route with climbs")
-        val total = route.climbs.size
-        val current = ClimbRepository.currentClimb(route, progress)
-        val d = progress.distanceAlongRoute
+        val total: Int = route.climbs.size
+        val current: NamedClimb? = ClimbRepository.currentClimb(route, progress)
+        val d: Double? = progress.distanceAlongRoute
         if (current != null && d != null) {
-            val g = current.geo
+            val g: ClimbGeo = current.geo
             return FieldContent(
                 "CLIMB ${g.index + 1}/$total",
                 current.label,
@@ -95,10 +98,10 @@ class ClimbNameDataType(extension: String) : DataTypeImpl(extension, "climb-name
             )
         }
         if (!settings.fieldShowsNextClimb) return FieldContent("CLIMB", "—", "Not on a climb")
-        val next = ClimbRepository.nextClimb(route, progress)
+        val next: NamedClimb = ClimbRepository.nextClimb(route, progress)
             ?: return FieldContent("CLIMB", "No more climbs", "")
-        val g = next.geo
-        val inText = d?.let { "in ${units.distance(g.startDistance - it)}" } ?: "${g.index + 1}/$total"
+        val g: ClimbGeo = next.geo
+        val inText: String = d?.let { "in ${units.distance(g.startDistance - it)}" } ?: "${g.index + 1}/$total"
         return FieldContent(
             "NEXT CLIMB · $inText",
             next.label,
@@ -107,33 +110,33 @@ class ClimbNameDataType(extension: String) : DataTypeImpl(extension, "climb-name
     }
 
     private suspend fun render(context: Context, config: ViewConfig, emitter: ViewEmitter, c: FieldContent) {
-        val density = context.resources.displayMetrics.density.takeIf { it > 0f } ?: 1f
-        val result = glance.compose(context, DpSize.Unspecified) { FieldView(c, config, density) }
+        val density: Float = context.resources.displayMetrics.density.takeIf { it > 0f } ?: 1f
+        val result: androidx.glance.appwidget.RemoteViewsCompositionResult = glance.compose(context, DpSize.Unspecified) { FieldView(c, config, density) }
         emitter.updateView(result.remoteViews)
     }
 }
 
-private val Orange = Color(0xFFFF6B1A)
+private val Orange: Color = Color(0xFFFF6B1A)
 
 @Composable
 private fun FieldView(c: FieldContent, config: ViewConfig, density: Float) {
-    val align = when (config.alignment) {
+    val align: Alignment.Horizontal = when (config.alignment) {
         ViewConfig.Alignment.LEFT -> Alignment.Horizontal.Start
         ViewConfig.Alignment.CENTER -> Alignment.Horizontal.CenterHorizontally
         ViewConfig.Alignment.RIGHT -> Alignment.Horizontal.End
     }
-    val textAlign = when (config.alignment) {
+    val textAlign: TextAlign = when (config.alignment) {
         ViewConfig.Alignment.LEFT -> TextAlign.Start
         ViewConfig.Alignment.CENTER -> TextAlign.Center
         ViewConfig.Alignment.RIGHT -> TextAlign.End
     }
-    val main = ColorProvider(day = Color.Black, night = Color.White)
-    val muted = ColorProvider(day = Color(0xFF555F6B), night = Color(0xFFB0BAC6))
+    val main: androidx.glance.unit.ColorProvider = ColorProvider(day = Color.Black, night = Color.White)
+    val muted: androidx.glance.unit.ColorProvider = ColorProvider(day = Color(0xFF555F6B), night = Color(0xFFB0BAC6))
     // Text sizes follow the field's height (not the Karoo's numeric textSize, which is far too
     // large for a name): three lines must fit, with firm limits so a full-width field stays tidy.
-    val heightDp = config.viewSize.second / density
-    val titleSp = (heightDp * 0.30f).coerceIn(13f, 22f)
-    val smallSp = (heightDp * 0.17f).coerceIn(10f, 13f)
+    val heightDp: Float = config.viewSize.second / density
+    val titleSp: Float = (heightDp * 0.30f).coerceIn(13f, 22f)
+    val smallSp: Float = (heightDp * 0.17f).coerceIn(10f, 13f)
     Column(
         modifier = GlanceModifier.fillMaxSize().padding(horizontal = 6.dp, vertical = 2.dp),
         horizontalAlignment = align,

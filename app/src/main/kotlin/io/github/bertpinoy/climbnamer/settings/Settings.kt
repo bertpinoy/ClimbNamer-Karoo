@@ -39,14 +39,14 @@ data class ClimbSettings(
 )
 
 object SettingsStore {
-    private const val PREFS = "climbnamer_settings"
+    private const val PREFS: String = "climbnamer_settings"
 
     private fun prefs(context: Context): SharedPreferences =
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     fun get(context: Context): ClimbSettings {
-        val p = prefs(context)
-        val d = ClimbSettings()
+        val p: SharedPreferences = prefs(context)
+        val d: ClimbSettings = ClimbSettings()
         return ClimbSettings(
             lookupOnRouteLoad = p.getBoolean("lookupOnRouteLoad", d.lookupOnRouteLoad),
             nominatimFallback = p.getBoolean("nominatimFallback", d.nominatimFallback),
@@ -78,12 +78,12 @@ object SettingsStore {
             .apply()
     }
 
-    fun update(context: Context, change: (ClimbSettings) -> ClimbSettings) = save(context, change(get(context)))
+    fun update(context: Context, change: (ClimbSettings) -> ClimbSettings): Unit = save(context, change(get(context)))
 
     /** Current settings, then every change. */
     fun flow(context: Context): Flow<ClimbSettings> = callbackFlow {
-        val p = prefs(context)
-        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> trySend(get(context)) }
+        val p: SharedPreferences = prefs(context)
+        val listener: SharedPreferences.OnSharedPreferenceChangeListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> trySend(get(context)) }
         trySend(get(context))
         p.registerOnSharedPreferenceChangeListener(listener)
         awaitClose { p.unregisterOnSharedPreferenceChangeListener(listener) }

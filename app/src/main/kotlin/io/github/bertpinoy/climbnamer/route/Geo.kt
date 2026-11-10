@@ -14,25 +14,25 @@ data class LatLng(val lat: Double, val lng: Double)
 object Geo {
     /** Great-circle distance in metres. */
     fun haversine(a: LatLng, b: LatLng): Double {
-        val r = 6371000.0
-        val dLat = Math.toRadians(b.lat - a.lat)
-        val dLng = Math.toRadians(b.lng - a.lng)
-        val s = sin(dLat / 2).pow(2) +
+        val r: Double = 6371000.0
+        val dLat: Double = Math.toRadians(b.lat - a.lat)
+        val dLng: Double = Math.toRadians(b.lng - a.lng)
+        val s: Double = sin(dLat / 2).pow(2) +
             cos(Math.toRadians(a.lat)) * cos(Math.toRadians(b.lat)) * sin(dLng / 2).pow(2)
         return 2 * r * asin(sqrt(s))
     }
 
     /** Distance in metres from p to segment a-b (local equirectangular projection). */
     fun distToSegment(p: LatLng, a: LatLng, b: LatLng): Double {
-        val k = cos(Math.toRadians(p.lat))
-        val ax = (a.lng - p.lng) * k
-        val ay = a.lat - p.lat
-        val bx = (b.lng - p.lng) * k
-        val by = b.lat - p.lat
-        val dx = bx - ax
-        val dy = by - ay
-        val len2 = dx * dx + dy * dy
-        val t = if (len2 > 0) (-(ax * dx + ay * dy) / len2).coerceIn(0.0, 1.0) else 0.0
+        val k: Double = cos(Math.toRadians(p.lat))
+        val ax: Double = (a.lng - p.lng) * k
+        val ay: Double = a.lat - p.lat
+        val bx: Double = (b.lng - p.lng) * k
+        val by: Double = b.lat - p.lat
+        val dx: Double = bx - ax
+        val dy: Double = by - ay
+        val len2: Double = dx * dx + dy * dy
+        val t: Double = if (len2 > 0) (-(ax * dx + ay * dy) / len2).coerceIn(0.0, 1.0) else 0.0
         return hypot(ax + t * dx, ay + t * dy) * 111_320.0
     }
 
@@ -41,14 +41,14 @@ object Geo {
      * (lat, lng) for routes (precision 5), (distance, elevation) for elevation profiles (precision 1).
      */
     fun decodePolyline(encoded: String, precision: Int): List<Pair<Double, Double>> {
-        val factor = 10.0.pow(precision)
-        val out = ArrayList<Pair<Double, Double>>()
-        var index = 0
-        var first = 0L
-        var second = 0L
+        val factor: Double = 10.0.pow(precision)
+        val out: ArrayList<Pair<Double, Double>> = ArrayList()
+        var index: Int = 0
+        var first: Long = 0L
+        var second: Long = 0L
         while (index < encoded.length) {
-            var result = 0L
-            var shift = 0
+            var result: Long = 0L
+            var shift: Int = 0
             var b: Int
             do {
                 b = encoded[index++].code - 63

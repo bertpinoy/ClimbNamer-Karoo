@@ -85,28 +85,28 @@ object RouteClimbsBuilder {
         rejoinDistance: Double? = null,
     ): RouteClimbs? {
         if (climbs.isEmpty()) return null
-        val route = Path.of(Geo.decodePolyline(polyline, 5).map { LatLng(it.first, it.second) }) ?: return null
-        val routeTotal = routeDistance?.takeIf { it > 0 } ?: route.length
+        val route: Path = Path.of(Geo.decodePolyline(polyline, 5).map { LatLng(it.first, it.second) }) ?: return null
+        val routeTotal: Double = routeDistance?.takeIf { it > 0 } ?: route.length
         // Karoo route distances and our geometric distances differ slightly: scale to match.
-        val routeScale = if (route.length > 0) route.length / routeTotal else 1.0
+        val routeScale: Double = if (route.length > 0) route.length / routeTotal else 1.0
 
-        val approach = rejoinPolyline?.takeIf { it.isNotEmpty() }
+        val approach: Path? = rejoinPolyline?.takeIf { it.isNotEmpty() }
             ?.let { Path.of(Geo.decodePolyline(it, 5).map { p -> LatLng(p.first, p.second) }) }
-        val approachLength = approach?.length ?: 0.0
+        val approachLength: Double = approach?.length ?: 0.0
         // Where the approach joins the route. The Karoo's rejoinDistance turned out to be
         // unreliable (it reported the route's end while the approach joined mid-route), so the
         // join point is taken from the map: the route point closest to the end of the approach.
-        val geoJoin = approach?.let { route.closestDistanceTo(it.end) }
-        val joinAt = when {
+        val geoJoin: Double? = approach?.let { route.closestDistanceTo(it.end) }
+        val joinAt: Double = when {
             approach == null -> 0.0
             geoJoin != null -> (geoJoin / routeScale).coerceIn(0.0, routeTotal)
             else -> (rejoinDistance ?: 0.0).coerceIn(0.0, routeTotal)
         }
-        val total = approachLength + (routeTotal - joinAt)
+        val total: Double = approachLength + (routeTotal - joinAt)
 
         /** Position along the navigated path: approach first, then the route from the join point. */
         fun pointAt(distance: Double): LatLng {
-            val d = distance.coerceIn(0.0, total)
+            val d: Double = distance.coerceIn(0.0, total)
             return if (approach != null && d < approachLength) {
                 approach.pointAt(d)
             } else {
@@ -115,34 +115,34 @@ object RouteClimbsBuilder {
         }
 
         // The elevation profile covers the route only (not the approach).
-        val (profile, profileStatus) = readProfile(elevationPolyline, routeTotal)
+        val (profile: List<Pair<Double, Double>>?, profileStatus: ProfileStatus) = readProfile(elevationPolyline, routeTotal)
 
         fun elevationAt(distance: Double): Double? {
-            val p = profile ?: return null
+            val p: List<Pair<Double, Double>> = profile ?: return null
             if (distance < approachLength) return null
-            val routeD = distance - approachLength + joinAt
-            var best = p[0]
+            val routeD: Double = distance - approachLength + joinAt
+            var best: Pair<Double, Double> = p[0]
             for (pt in p) if (abs(pt.first - routeD) < abs(best.first - routeD)) best = pt
             return best.second
         }
 
-        val result = climbs.sortedBy { it.startDistance }.mapIndexed { i, c ->
-            val start = c.startDistance
+        val result: List<ClimbGeo> = climbs.sortedBy { it.startDistance }.mapIndexed { i, c ->
+            val start: Double = c.startDistance
             // A climb can run past the end of the navigated path (e.g. when the Karoo joins a loop
             // route at its end). Only use the part that exists; squeezing the rest onto the last
             // point gave names of the road at the end of the route.
-            val end = minOf(c.startDistance + c.length, total)
-            val step = max(25.0, c.length / 80.0)
-            val samples = if (start >= end) {
+            val end: Double = minOf(c.startDistance + c.length, total)
+            val step: Double = max(25.0, c.length / 80.0)
+            val samples: List<Double> = if (start >= end) {
                 listOf(minOf(start, total))
             } else {
                 generateSequence(start) { it + step }.takeWhile { it < end }.toList() + end
             }
             // Top = highest point of the climb according to the profile, else the end.
-            var topDist = end
+            var topDist: Double = end
             var topEle: Double? = null
             for (s in samples) {
-                val e = elevationAt(s) ?: continue
+                val e: Double = elevationAt(s) ?: continue
                 if (topEle == null || e > topEle) {
                     topEle = e
                     topDist = s
@@ -162,8 +162,8 @@ object RouteClimbsBuilder {
             )
         }
 
-        val beyond = climbs.count { it.startDistance + it.length > total * 1.02 }
-        val diagnostics = buildString {
+        val beyond: Int = climbs.count { it.startDistance + it.length > total * 1.02 }
+        val diagnostics: String = buildString {
             append(String.format(Locale.US, "route %.1f km (polyline %.1f km)", routeTotal / 1000, route.length / 1000))
             if (approach != null) {
                 append(String.format(Locale.US, " · approach %.1f km, joins route at %.1f km", approachLength / 1000, joinAt / 1000))
@@ -173,7 +173,7 @@ object RouteClimbsBuilder {
             if (beyond > 0) append(" ($beyond beyond the end!)")
             append(" · elevation profile ${profileStatus.name.lowercase(Locale.US)} · reversed=$reversed")
         }
-        val key = "${polyline.hashCode()}:${climbs.hashCode()}:${total.toInt()}"
+        val key: String = "${polyline.hashCode()}:${climbs.hashCode()}:${total.toInt()}"
         return RouteClimbs(
             key = key,
             name = name,
@@ -191,16 +191,16 @@ object RouteClimbsBuilder {
      */
     fun readProfile(encoded: String?, total: Double): Pair<List<Pair<Double, Double>>?, ProfileStatus> {
         if (encoded.isNullOrEmpty()) return null to ProfileStatus.MISSING
-        val raw = runCatching { Geo.decodePolyline(encoded, 1) }.getOrNull()
+        val raw: List<Pair<Double, Double>>? = runCatching { Geo.decodePolyline(encoded, 1) }.getOrNull()
         if (raw == null || raw.size < 2) return null to ProfileStatus.UNUSABLE
         fun plausibleDistances(values: List<Double>): Boolean {
-            val increasing = values.zipWithNext().all { (a, b) -> b >= a - 1.0 }
-            val last = values.last()
+            val increasing: Boolean = values.zipWithNext().all { (a, b) -> b >= a - 1.0 }
+            val last: Double = values.last()
             return increasing && values.first() >= -1.0 && last > total * 0.8 && last < total * 1.2
         }
-        fun plausibleElevations(values: List<Double>) = values.all { it > -500 && it < 9000 }
-        val firsts = raw.map { it.first }
-        val seconds = raw.map { it.second }
+        fun plausibleElevations(values: List<Double>): Boolean = values.all { it > -500 && it < 9000 }
+        val firsts: List<Double> = raw.map { it.first }
+        val seconds: List<Double> = raw.map { it.second }
         return when {
             plausibleDistances(firsts) && plausibleElevations(seconds) -> raw to ProfileStatus.OK
             plausibleDistances(seconds) && plausibleElevations(firsts) ->
@@ -221,19 +221,19 @@ class Path private constructor(private val coords: List<LatLng>, private val cum
      * after joining, the Karoo follows the route forwards from there.
      */
     fun closestDistanceTo(p: LatLng): Double {
-        var best = Double.MAX_VALUE
-        val candidates = ArrayList<Pair<Double, Double>>() // (offset m, distance along)
+        var best: Double = Double.MAX_VALUE
+        val candidates: ArrayList<Pair<Double, Double>> = ArrayList() // (offset m, distance along)
         for (i in 1 until coords.size) {
-            val a = coords[i - 1]
-            val b = coords[i]
-            val offset = Geo.distToSegment(p, a, b)
+            val a: LatLng = coords[i - 1]
+            val b: LatLng = coords[i]
+            val offset: Double = Geo.distToSegment(p, a, b)
             // Position of the projection along the segment.
-            val k = Math.cos(Math.toRadians(p.lat))
-            val dx = (b.lng - a.lng) * k
-            val dy = b.lat - a.lat
-            val len2 = dx * dx + dy * dy
-            val t = if (len2 > 0) ((((p.lng - a.lng) * k) * dx + (p.lat - a.lat) * dy) / len2).coerceIn(0.0, 1.0) else 0.0
-            val along = cum[i - 1] + t * (cum[i] - cum[i - 1])
+            val k: Double = Math.cos(Math.toRadians(p.lat))
+            val dx: Double = (b.lng - a.lng) * k
+            val dy: Double = b.lat - a.lat
+            val len2: Double = dx * dx + dy * dy
+            val t: Double = if (len2 > 0) ((((p.lng - a.lng) * k) * dx + (p.lat - a.lat) * dy) / len2).coerceIn(0.0, 1.0) else 0.0
+            val along: Double = cum[i - 1] + t * (cum[i] - cum[i - 1])
             candidates += offset to along
             if (offset < best) best = offset
         }
@@ -241,24 +241,24 @@ class Path private constructor(private val coords: List<LatLng>, private val cum
     }
 
     fun pointAt(distance: Double): LatLng {
-        val d = distance.coerceIn(0.0, length)
-        var lo = 0
-        var hi = cum.size - 1
+        val d: Double = distance.coerceIn(0.0, length)
+        var lo: Int = 0
+        var hi: Int = cum.size - 1
         while (hi - lo > 1) {
-            val mid = (lo + hi) / 2
+            val mid: Int = (lo + hi) / 2
             if (cum[mid] <= d) lo = mid else hi = mid
         }
-        val span = cum[hi] - cum[lo]
-        val t = if (span > 0) (d - cum[lo]) / span else 0.0
-        val a = coords[lo]
-        val b = coords[hi]
+        val span: Double = cum[hi] - cum[lo]
+        val t: Double = if (span > 0) (d - cum[lo]) / span else 0.0
+        val a: LatLng = coords[lo]
+        val b: LatLng = coords[hi]
         return LatLng(a.lat + (b.lat - a.lat) * t, a.lng + (b.lng - a.lng) * t)
     }
 
     companion object {
         fun of(coords: List<LatLng>): Path? {
             if (coords.size < 2) return null
-            val cum = DoubleArray(coords.size)
+            val cum: DoubleArray = DoubleArray(coords.size)
             for (i in 1 until coords.size) cum[i] = cum[i - 1] + Geo.haversine(coords[i - 1], coords[i])
             return Path(coords, cum)
         }

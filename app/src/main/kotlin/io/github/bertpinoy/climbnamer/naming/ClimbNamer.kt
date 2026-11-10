@@ -31,9 +31,9 @@ import java.util.Locale
  * and every request identifies the app.
  */
 class ClimbNamer(private val karoo: KarooSystemService) {
-    private val json = Json { ignoreUnknownKeys = true }
-    private val userAgent = "ClimbNamer-Karoo/${BuildConfig.VERSION_NAME} (+https://github.com/bertpinoy/ClimbNamer-Karoo)"
-    private val headers = mapOf("User-Agent" to userAgent, "Accept" to "application/json")
+    private val json: Json = Json { ignoreUnknownKeys = true }
+    private val userAgent: String = "ClimbNamer-Karoo/${BuildConfig.VERSION_NAME} (+https://github.com/bertpinoy/ClimbNamer-Karoo)"
+    private val headers: Map<String, String> = mapOf("User-Agent" to userAgent, "Accept" to "application/json")
 
     suspend fun name(climb: ClimbGeo, allowNominatim: Boolean): ClimbName? {
         runCatching { return withOverpass(climb) }
@@ -46,7 +46,7 @@ class ClimbNamer(private val karoo: KarooSystemService) {
 
     // ------------------------------------------------------------------ Overpass
 
-    private val overpassMirrors = listOf(
+    private val overpassMirrors: List<String> = listOf(
         "https://overpass-api.de/api/interpreter",
         "https://overpass.kumi.systems/api/interpreter",
     )
@@ -54,8 +54,8 @@ class ClimbNamer(private val karoo: KarooSystemService) {
     private suspend fun overpass(query: String): JsonObject {
         var last: Exception? = null
         for (url in overpassMirrors) {
-            val body = "data=" + URLEncoder.encode(query, "UTF-8")
-            val res = karoo.http(
+            val body: String = "data=" + URLEncoder.encode(query, "UTF-8")
+            val res: HttpResult = karoo.http(
                 "POST",
                 url,
                 headers + ("Content-Type" to "application/x-www-form-urlencoded"),
@@ -70,16 +70,16 @@ class ClimbNamer(private val karoo: KarooSystemService) {
     }
 
     private fun bbox(points: List<LatLng>, margin: Double): String {
-        val s = points.minOf { it.lat } - margin
-        val n = points.maxOf { it.lat } + margin
-        val w = points.minOf { it.lng } - margin
-        val e = points.maxOf { it.lng } + margin
+        val s: Double = points.minOf { it.lat } - margin
+        val n: Double = points.maxOf { it.lat } + margin
+        val w: Double = points.minOf { it.lng } - margin
+        val e: Double = points.maxOf { it.lng } + margin
         return listOf(s, w, n, e).joinToString(",") { String.format(Locale.US, "%.5f", it) }
     }
 
     private suspend fun withOverpass(climb: ClimbGeo): ClimbName {
-        val skip = "footway|steps|corridor|elevator|platform|proposed|construction|bus_stop"
-        val q = """
+        val skip: String = "footway|steps|corridor|elevator|platform|proposed|construction|bus_stop"
+        val q: String = """
             [out:json][timeout:25];
             (
               way[highway][name][highway!~"^($skip)${'$'}"](${bbox(climb.points, 0.0008)});
@@ -89,25 +89,25 @@ class ClimbNamer(private val karoo: KarooSystemService) {
             );
             out tags geom;
         """.trimIndent()
-        val elements = overpass(q)["elements"]?.jsonArray ?: JsonArray(emptyList())
+        val elements: JsonArray = overpass(q)["elements"]?.jsonArray ?: JsonArray(emptyList())
 
-        val summits = mutableListOf<Candidate>()
-        val places = mutableListOf<Pair<String, Double>>()
-        val ways = mutableListOf<Pair<String, List<LatLng>>>()
+        val summits: MutableList<Candidate> = mutableListOf<Candidate>()
+        val places: MutableList<Pair<String, Double>> = mutableListOf<Pair<String, Double>>()
+        val ways: MutableList<Pair<String, List<LatLng>>> = mutableListOf<Pair<String, List<LatLng>>>()
         for (el in elements) {
-            val o = el.jsonObject
-            val tags = o["tags"]?.jsonObject ?: continue
-            val name = tags["name"]?.jsonPrimitive?.contentOrNull ?: continue
+            val o: JsonObject = el.jsonObject
+            val tags: JsonObject = o["tags"]?.jsonObject ?: continue
+            val name: String = tags["name"]?.jsonPrimitive?.contentOrNull ?: continue
             when (o["type"]?.jsonPrimitive?.contentOrNull) {
                 "node" -> {
-                    val lat = o["lat"]?.jsonPrimitive?.doubleOrNull ?: continue
-                    val lon = o["lon"]?.jsonPrimitive?.doubleOrNull ?: continue
-                    val natural = tags["natural"]?.jsonPrimitive?.contentOrNull
-                    val pass = tags["mountain_pass"]?.jsonPrimitive?.contentOrNull == "yes"
+                    val lat: Double = o["lat"]?.jsonPrimitive?.doubleOrNull ?: continue
+                    val lon: Double = o["lon"]?.jsonPrimitive?.doubleOrNull ?: continue
+                    val natural: String? = tags["natural"]?.jsonPrimitive?.contentOrNull
+                    val pass: Boolean = tags["mountain_pass"]?.jsonPrimitive?.contentOrNull == "yes"
                     if (tags["place"] != null) {
                         places += name to Geo.haversine(climb.top, LatLng(lat, lon))
                     } else if (natural != null || pass) {
-                        val kind = when {
+                        val kind: Kind = when {
                             pass || natural == "saddle" -> Kind.PASS
                             natural == "hill" -> Kind.HILL
                             else -> Kind.PEAK
@@ -116,10 +116,10 @@ class ClimbNamer(private val karoo: KarooSystemService) {
                     }
                 }
                 "way" -> {
-                    val geom = o["geometry"]?.jsonArray?.mapNotNull {
-                        val p = it.jsonObject
-                        val lat = p["lat"]?.jsonPrimitive?.doubleOrNull
-                        val lon = p["lon"]?.jsonPrimitive?.doubleOrNull
+                    val geom: List<LatLng> = o["geometry"]?.jsonArray?.mapNotNull {
+                        val p: JsonObject = it.jsonObject
+                        val lat: Double? = p["lat"]?.jsonPrimitive?.doubleOrNull
+                        val lon: Double? = p["lon"]?.jsonPrimitive?.doubleOrNull
                         if (lat != null && lon != null) LatLng(lat, lon) else null
                     }.orEmpty()
                     if (geom.size >= 2) ways += name to geom
@@ -127,18 +127,18 @@ class ClimbNamer(private val karoo: KarooSystemService) {
             }
         }
 
-        val summit = pickSummit(climb.top, summits)
+        val summit: Candidate? = pickSummit(climb.top, summits)
 
         // Roads the climb follows, weighted by the distance covered.
-        val tally = linkedMapOf<String, Double>()
-        val pts = climb.points
+        val tally: LinkedHashMap<String, Double> = linkedMapOf<String, Double>()
+        val pts: List<LatLng> = climb.points
         for (i in 1 until pts.size) {
-            val mid = LatLng((pts[i - 1].lat + pts[i].lat) / 2, (pts[i - 1].lng + pts[i].lng) / 2)
+            val mid: LatLng = LatLng((pts[i - 1].lat + pts[i].lat) / 2, (pts[i - 1].lng + pts[i].lng) / 2)
             var best: String? = null
-            var bestD = 35.0
+            var bestD: Double = 35.0
             for ((name, g) in ways) {
                 for (j in 1 until g.size) {
-                    val d = Geo.distToSegment(mid, g[j - 1], g[j])
+                    val d: Double = Geo.distToSegment(mid, g[j - 1], g[j])
                     if (d < bestD) {
                         bestD = d
                         best = name
@@ -147,56 +147,56 @@ class ClimbNamer(private val karoo: KarooSystemService) {
             }
             if (best != null) tally[best] = (tally[best] ?: 0.0) + Geo.haversine(pts[i - 1], pts[i])
         }
-        val total = tally.values.sum().takeIf { it > 0 } ?: 1.0
-        val roads = tally.entries.filter { it.value / total >= 0.2 }.sortedByDescending { it.value }.map { it.key }
-        val place = places.minByOrNull { it.second }?.first.orEmpty()
+        val total: Double = tally.values.sum().takeIf { it > 0 } ?: 1.0
+        val roads: List<String> = tally.entries.filter { it.value / total >= 0.2 }.sortedByDescending { it.value }.map { it.key }
+        val place: String = places.minByOrNull { it.second }?.first.orEmpty()
 
         return compose(summit, roads, place)
     }
 
     // ------------------------------------------------------------------ Nominatim
 
-    private val nominatimLock = Mutex()
-    private var nominatimLastAt = 0L
+    private val nominatimLock: Mutex = Mutex()
+    private var nominatimLastAt: Long = 0L
 
     private suspend fun nominatim(path: String): String = nominatimLock.withLock {
-        val wait = nominatimLastAt + 1100 - System.currentTimeMillis()
+        val wait: Long = nominatimLastAt + 1100 - System.currentTimeMillis()
         if (wait > 0) delay(wait)
         nominatimLastAt = System.currentTimeMillis()
-        val res = karoo.http("GET", "https://nominatim.openstreetmap.org$path", headers)
+        val res: HttpResult = karoo.http("GET", "https://nominatim.openstreetmap.org$path", headers)
         if (!res.ok || res.body == null) throw IllegalStateException("Nominatim: ${res.status} ${res.error ?: ""}")
         res.body
     }
 
     private suspend fun withNominatim(climb: ClimbGeo): ClimbName {
-        val top = climb.top
-        val candidates = mutableListOf<Candidate>()
+        val top: LatLng = climb.top
+        val candidates: MutableList<Candidate> = mutableListOf<Candidate>()
         suspend fun search(phrase: String, radius: Double, kind: Kind) {
-            val vb = listOf(top.lng - radius, top.lat + radius, top.lng + radius, top.lat - radius)
+            val vb: String = listOf(top.lng - radius, top.lat + radius, top.lng + radius, top.lat - radius)
                 .joinToString(",") { String.format(Locale.US, "%.5f", it) }
-            val body = nominatim("/search?format=jsonv2&q=${URLEncoder.encode(phrase, "UTF-8")}&viewbox=$vb&bounded=1&limit=10")
+            val body: String = nominatim("/search?format=jsonv2&q=${URLEncoder.encode(phrase, "UTF-8")}&viewbox=$vb&bounded=1&limit=10")
             json.parseToJsonElement(body).jsonArray.forEach {
-                val o = it.jsonObject
-                val name = o["name"]?.jsonPrimitive?.contentOrNull?.takeIf { n -> n.isNotBlank() } ?: return@forEach
-                val lat = o["lat"]?.jsonPrimitive?.contentOrNull?.toDoubleOrNull() ?: return@forEach
-                val lon = o["lon"]?.jsonPrimitive?.contentOrNull?.toDoubleOrNull() ?: return@forEach
+                val o: JsonObject = it.jsonObject
+                val name: String = o["name"]?.jsonPrimitive?.contentOrNull?.takeIf { n -> n.isNotBlank() } ?: return@forEach
+                val lat: Double = o["lat"]?.jsonPrimitive?.contentOrNull?.toDoubleOrNull() ?: return@forEach
+                val lon: Double = o["lon"]?.jsonPrimitive?.contentOrNull?.toDoubleOrNull() ?: return@forEach
                 candidates += Candidate(name, LatLng(lat, lon), kind)
             }
         }
         if ((climb.topElevation ?: 0.0) >= 400) search("[mountain_pass=yes]", 0.005, Kind.PASS)
         search("[natural=peak]", 0.007, Kind.PEAK)
-        val summit = pickSummit(top, candidates)
+        val summit: Candidate? = pickSummit(top, candidates)
 
-        val tally = linkedMapOf<String, Int>()
-        var place = ""
+        val tally: LinkedHashMap<String, Int> = linkedMapOf<String, Int>()
+        var place: String = ""
         for (f in listOf(0.3, 0.75)) {
-            val p = climb.points[((climb.points.size - 1) * f).toInt()]
-            val body = nominatim(
+            val p: LatLng = climb.points[((climb.points.size - 1) * f).toInt()]
+            val body: String = nominatim(
                 String.format(Locale.US, "/reverse?format=jsonv2&lat=%.6f&lon=%.6f&zoom=17&layer=address&addressdetails=1", p.lat, p.lng),
             )
-            val o = json.parseToJsonElement(body).jsonObject
-            val address = o["address"]?.jsonObject
-            val road = if (o["category"]?.jsonPrimitive?.contentOrNull == "highway") {
+            val o: JsonObject = json.parseToJsonElement(body).jsonObject
+            val address: JsonObject? = o["address"]?.jsonObject
+            val road: String? = if (o["category"]?.jsonPrimitive?.contentOrNull == "highway") {
                 o["name"]?.jsonPrimitive?.contentOrNull
             } else {
                 address?.get("road")?.jsonPrimitive?.contentOrNull
@@ -207,7 +207,7 @@ class ClimbNamer(private val karoo: KarooSystemService) {
                     .firstNotNullOfOrNull { address[it]?.jsonPrimitive?.contentOrNull }.orEmpty()
             }
         }
-        val roads = tally.entries.sortedByDescending { it.value }.map { it.key }
+        val roads: List<String> = tally.entries.sortedByDescending { it.value }.map { it.key }
         return compose(summit, roads, place)
     }
 
@@ -225,7 +225,7 @@ class ClimbNamer(private val karoo: KarooSystemService) {
 
     private fun compose(summit: Candidate?, roads: List<String>, place: String): ClimbName = when {
         summit != null -> {
-            val via = roads.filter { it != summit.name }.take(2)
+            val via: List<String> = roads.filter { it != summit.name }.take(2)
             ClimbName(summit.name, if (via.isNotEmpty()) "via " + via.joinToString(" / ") else place, "summit")
         }
         roads.isNotEmpty() -> ClimbName(

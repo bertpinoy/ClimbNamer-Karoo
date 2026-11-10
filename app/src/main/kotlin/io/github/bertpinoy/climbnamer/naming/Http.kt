@@ -30,7 +30,7 @@ suspend fun KarooSystemService.http(
                 if (cont.isActive) cont.resume(HttpResult(0, null, msg))
             },
         ) { event ->
-            val state = event.state
+            val state: HttpResponseState = event.state
             if (state is HttpResponseState.Complete && cont.isActive) {
                 consumerId?.let { removeConsumer(it) }
                 cont.resume(HttpResult(state.statusCode, state.body?.decodeToString(), state.error))

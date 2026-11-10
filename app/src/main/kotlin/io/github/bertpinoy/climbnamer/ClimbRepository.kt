@@ -52,14 +52,14 @@ data class Progress(
  * In-process state shared by the extension service, the data field and the map layer.
  */
 object ClimbRepository {
-    private val _route = MutableStateFlow<ActiveRoute?>(null)
+    private val _route: MutableStateFlow<ActiveRoute?> = MutableStateFlow<ActiveRoute?>(null)
     val route: StateFlow<ActiveRoute?> = _route.asStateFlow()
 
-    private val _progress = MutableStateFlow(Progress(null))
+    private val _progress: MutableStateFlow<Progress> = MutableStateFlow(Progress(null))
     val progress: StateFlow<Progress> = _progress.asStateFlow()
 
     /** Rider's preferred units (from the Karoo user profile). */
-    val units = MutableStateFlow(Units())
+    val units: MutableStateFlow<Units> = MutableStateFlow(Units())
 
     private var lookupJob: Job? = null
 
@@ -108,29 +108,29 @@ object ClimbRepository {
      * companion app. The Karoo SDK has no "connection available" event, so retries are timed;
      * after the last one (about an hour in total) ClimbNamer stops until the route is reloaded.
      */
-    private val retryMinutes = listOf(1L, 2L, 5L, 10L, 15L, 30L)
+    private val retryMinutes: List<Long> = listOf(1L, 2L, 5L, 10L, 15L, 30L)
 
     /** Looks up names that are not cached yet, one climb at a time, retrying failures later. */
     fun startLookups(cache: NameCache, namer: ClimbNamer, scope: CoroutineScope, allowNominatim: Boolean) {
         if (lookupJob?.isActive == true) return
-        val routeKey = _route.value?.key ?: return
+        val routeKey: String = _route.value?.key ?: return
         lookupJob = scope.launch {
-            var attempt = 0
+            var attempt: Int = 0
             while (true) {
-                val todo = _route.value?.takeIf { it.key == routeKey }?.climbs?.filter { it.name == null } ?: return@launch
+                val todo: List<NamedClimb> = _route.value?.takeIf { it.key == routeKey }?.climbs?.filter { it.name == null } ?: return@launch
                 if (todo.isEmpty()) return@launch
-                val retryLeft = attempt < retryMinutes.size
+                val retryLeft: Boolean = attempt < retryMinutes.size
                 for (climb in todo) {
                     updateClimb(routeKey, climb.geo.index) { it.copy(lookupFailed = false, retrying = false, lookingUp = true) }
-                    val name = namer.name(climb.geo, allowNominatim)
+                    val name: ClimbName? = namer.name(climb.geo, allowNominatim)
                     if (name != null) cache.put(climb.geo, name)
                     updateClimb(routeKey, climb.geo.index) {
                         it.copy(name = name, lookupFailed = name == null, retrying = name == null && retryLeft, lookingUp = false)
                     }
                 }
-                val stillMissing = _route.value?.takeIf { it.key == routeKey }?.climbs?.any { it.name == null } ?: false
+                val stillMissing: Boolean = _route.value?.takeIf { it.key == routeKey }?.climbs?.any { it.name == null } ?: false
                 if (!stillMissing || !retryLeft) return@launch
-                val wait = retryMinutes[attempt++]
+                val wait: Long = retryMinutes[attempt++]
                 Timber.i("Name lookup failed for some climbs; retrying in $wait min")
                 delay(wait * 60_000)
             }
@@ -156,8 +156,8 @@ object ClimbRepository {
     /** Null when there's nothing to report (no route, or no lookups were needed or allowed). */
     fun syncStatus(route: ActiveRoute?): SyncStatus? {
         if (route == null || !route.neededLookup) return null
-        val total = route.climbs.size
-        val named = route.climbs.count { it.name != null }
+        val total: Int = route.climbs.size
+        val named: Int = route.climbs.count { it.name != null }
         return when {
             route.climbs.any { it.lookingUp } -> SyncStatus.Running(named, total)
             route.climbs.any { it.lookupFailed && it.retrying } -> SyncStatus.WaitingForConnection(named, total)
@@ -173,13 +173,13 @@ object ClimbRepository {
 
     /** The climb the rider is on, if any. */
     fun currentClimb(route: ActiveRoute?, progress: Progress): NamedClimb? {
-        val d = progress.distanceAlongRoute ?: return null
+        val d: Double = progress.distanceAlongRoute ?: return null
         return route?.climbs?.firstOrNull { d >= it.geo.startDistance && d <= it.geo.endDistance }
     }
 
     /** The next climb ahead of the rider, if any. */
     fun nextClimb(route: ActiveRoute?, progress: Progress): NamedClimb? {
-        val d = progress.distanceAlongRoute ?: return route?.climbs?.firstOrNull()
+        val d: Double = progress.distanceAlongRoute ?: return route?.climbs?.firstOrNull()
         return route?.climbs?.firstOrNull { it.geo.startDistance > d }
     }
 }

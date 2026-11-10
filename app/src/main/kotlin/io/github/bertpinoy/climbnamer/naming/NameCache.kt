@@ -25,9 +25,9 @@ data class ClimbName(
  * the same key as the ClimbNamer browser extension.
  */
 class NameCache(context: Context) {
-    private val file = File(context.filesDir, "climb_names.json")
-    private val json = Json { ignoreUnknownKeys = true }
-    private val lock = Any()
+    private val file: File = File(context.filesDir, "climb_names.json")
+    private val json: Json = Json { ignoreUnknownKeys = true }
+    private val lock: Any = Any()
     private var map: MutableMap<String, ClimbName> = load()
 
     private fun load(): MutableMap<String, ClimbName> = runCatching {
@@ -36,22 +36,24 @@ class NameCache(context: Context) {
 
     fun get(climb: ClimbGeo): ClimbName? = synchronized(lock) { map[key(climb)] }
 
-    fun put(climb: ClimbGeo, name: ClimbName) = synchronized(lock) {
+    fun put(climb: ClimbGeo, name: ClimbName): Unit = synchronized(lock) {
         map[key(climb)] = name
         runCatching { file.writeText(json.encodeToString(map.toMap())) }
+        Unit
     }
 
     val size: Int get() = synchronized(lock) { map.size }
 
-    fun clear() = synchronized(lock) {
+    fun clear(): Unit = synchronized(lock) {
         map.clear()
         file.delete()
+        Unit
     }
 
     companion object {
-        private const val VERSION = 2
+        private const val VERSION: Int = 2
         fun key(c: ClimbGeo): String {
-            fun r(v: Double) = String.format(Locale.US, "%.3f", v)
+            fun r(v: Double): String = String.format(Locale.US, "%.3f", v)
             return "v$VERSION:${r(c.start.lat)},${r(c.start.lng)}>${r(c.top.lat)},${r(c.top.lng)}"
         }
     }
