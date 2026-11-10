@@ -107,7 +107,8 @@ class ClimbNameDataType(extension: String) : DataTypeImpl(extension, "climb-name
     }
 
     private suspend fun render(context: Context, config: ViewConfig, emitter: ViewEmitter, c: FieldContent) {
-        val result = glance.compose(context, DpSize.Unspecified) { FieldView(c, config) }
+        val density = context.resources.displayMetrics.density.takeIf { it > 0f } ?: 1f
+        val result = glance.compose(context, DpSize.Unspecified) { FieldView(c, config, density) }
         emitter.updateView(result.remoteViews)
     }
 }
@@ -115,7 +116,7 @@ class ClimbNameDataType(extension: String) : DataTypeImpl(extension, "climb-name
 private val Orange = Color(0xFFFF6B1A)
 
 @Composable
-private fun FieldView(c: FieldContent, config: ViewConfig) {
+private fun FieldView(c: FieldContent, config: ViewConfig, density: Float) {
     val align = when (config.alignment) {
         ViewConfig.Alignment.LEFT -> Alignment.Horizontal.Start
         ViewConfig.Alignment.CENTER -> Alignment.Horizontal.CenterHorizontally
@@ -128,7 +129,11 @@ private fun FieldView(c: FieldContent, config: ViewConfig) {
     }
     val main = ColorProvider(day = Color.Black, night = Color.White)
     val muted = ColorProvider(day = Color(0xFF555F6B), night = Color(0xFFB0BAC6))
-    val base = config.textSize.coerceIn(12, 60)
+    // Text sizes follow the field's height (not the Karoo's numeric textSize, which is far too
+    // large for a name): three lines must fit, with firm limits so a full-width field stays tidy.
+    val heightDp = config.viewSize.second / density
+    val titleSp = (heightDp * 0.30f).coerceIn(13f, 22f)
+    val smallSp = (heightDp * 0.17f).coerceIn(10f, 13f)
     Column(
         modifier = GlanceModifier.fillMaxSize().padding(horizontal = 6.dp, vertical = 2.dp),
         horizontalAlignment = align,
@@ -137,18 +142,18 @@ private fun FieldView(c: FieldContent, config: ViewConfig) {
         Text(
             text = c.header,
             maxLines = 1,
-            style = TextStyle(color = ColorProvider(day = Orange, night = Orange), fontSize = (base * 0.42).sp, fontWeight = FontWeight.Bold, textAlign = textAlign),
+            style = TextStyle(color = ColorProvider(day = Orange, night = Orange), fontSize = smallSp.sp, fontWeight = FontWeight.Bold, textAlign = textAlign),
         )
         Text(
             text = c.title,
             maxLines = 1,
-            style = TextStyle(color = main, fontSize = (base * 0.75).sp, fontWeight = FontWeight.Bold, textAlign = textAlign),
+            style = TextStyle(color = main, fontSize = titleSp.sp, fontWeight = FontWeight.Bold, textAlign = textAlign),
         )
         if (c.detail.isNotEmpty()) {
             Text(
                 text = c.detail,
                 maxLines = 1,
-                style = TextStyle(color = muted, fontSize = (base * 0.42).sp, textAlign = textAlign),
+                style = TextStyle(color = muted, fontSize = smallSp.sp, textAlign = textAlign),
             )
         }
     }
