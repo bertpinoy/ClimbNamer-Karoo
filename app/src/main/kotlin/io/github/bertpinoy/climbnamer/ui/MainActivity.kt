@@ -144,6 +144,7 @@ private fun SettingsScreen() {
             Text("No route with climbs loaded.", color = Mist, fontSize = 13.sp)
         } else {
             Text("${r.name} · ${r.climbs.size} climbs", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            if (r.diagnostics.isNotEmpty()) Text(r.diagnostics, color = Mist, fontSize = 10.sp)
             r.climbs.forEach { c ->
                 val status = when {
                     c.name != null -> c.name.detail.ifEmpty { c.name.source }

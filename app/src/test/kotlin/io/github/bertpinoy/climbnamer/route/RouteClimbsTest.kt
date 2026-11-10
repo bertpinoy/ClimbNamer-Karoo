@@ -61,24 +61,55 @@ class RouteClimbsTest {
         assertTrue(c.points.size > 10)
     }
 
+    private val origin = LatLng(50.0, 3.0)
+    private val straightRoute = (0..100).map { LatLng(origin.lat + it * 0.0008983, origin.lng) } // ~100 m steps
+    private val straightTotal = (1 until straightRoute.size).sumOf { Geo.haversine(straightRoute[it - 1], straightRoute[it]) }
+    private val oneClimb = listOf(OnNavigationState.NavigationState.Climb(4000.0, 2000.0, 5.0, 100.0))
+
     @Test
-    fun handlesReversedProfile() {
-        // Same route, but the elevation profile is given in the opposite direction:
-        // the climb only goes up when read reversed, so the builder should flip it.
-        val start = LatLng(50.0, 3.0)
-        val route = (0..100).map { LatLng(start.lat + it * 0.0008983, start.lng) }
-        val total = (1 until route.size).sumOf { Geo.haversine(route[it - 1], route[it]) }
+    fun neverFlipsTheRoute() {
+        // Elevation profile that only "climbs" when read backwards: the climb must still be
+        // placed 4 km from the START (regression: 0.1.0 flipped it to 4 km before the finish).
         val profile = (0..100).map { i ->
-            val d = i * total / 100
-            val r = total - d // reversed distance
-            val e = if (r in 4000.0..6000.0) 50.0 + (r - 4000) * 0.05 else if (r > 6000) 150.0 else 50.0
-            d to e
+            val d = i * straightTotal / 100
+            val r = straightTotal - d
+            d to (if (r in 4000.0..6000.0) 50.0 + (r - 4000) * 0.05 else if (r > 6000) 150.0 else 50.0)
         }
-        val climbs = listOf(OnNavigationState.NavigationState.Climb(4000.0, 2000.0, 5.0, 100.0))
-        val result = RouteClimbsBuilder.build("Rev", encode(route.map { it.lat to it.lng }, 5), encode(profile, 1), total, climbs)
+        val result = RouteClimbsBuilder.build("NoFlip", encode(straightRoute.map { it.lat to it.lng }, 5), encode(profile, 1), straightTotal, oneClimb)
         val c = result!!.climbs.single()
-        // Read reversed, the climb starts 4 km from the END of the polyline.
-        assertTrue(abs(Geo.haversine(route.last(), c.start) - 4000) < 60)
+        assertTrue(abs(Geo.haversine(origin, c.start) - 4000) < 60)
+    }
+
+    @Test
+    fun detectsSwappedProfile() {
+        // Pairs given as (elevation, distance) instead of (distance, elevation).
+        val profile = (0..100).map { i ->
+            val d = i * straightTotal / 100
+            val e = when {
+                d < 4000 -> 50.0
+                d < 5000 -> 50.0 + (d - 4000) * 0.1
+                else -> 150.0 - (d - 5000) * 0.01
+            }
+            e to d
+        }
+        val (parsed, status) = RouteClimbsBuilder.readProfile(encode(profile, 1), straightTotal)
+        assertEquals(ProfileStatus.SWAPPED, status)
+        assertNotNull(parsed)
+        val result = RouteClimbsBuilder.build("Swapped", encode(straightRoute.map { it.lat to it.lng }, 5), encode(profile, 1), straightTotal, oneClimb)
+        // Highest point at 5 km, not at the climb's end (6 km).
+        assertTrue(abs(Geo.haversine(origin, result!!.climbs.single().top) - 5000) < 60)
+    }
+
+    @Test
+    fun ignoresUnusableProfile() {
+        val garbage = (0..50).map { (it * 37 % 11).toDouble() to (it * 1000.0) * -1 }
+        val (_, status) = RouteClimbsBuilder.readProfile(encode(garbage, 1), straightTotal)
+        assertEquals(ProfileStatus.UNUSABLE, status)
+        val result = RouteClimbsBuilder.build("Garbage", encode(straightRoute.map { it.lat to it.lng }, 5), encode(garbage, 1), straightTotal, oneClimb)
+        val c = result!!.climbs.single()
+        // Without a usable profile the top is the climb's end (6 km).
+        assertTrue(abs(Geo.haversine(origin, c.top) - 6000) < 60)
+        assertTrue(result.diagnostics.contains("unusable"))
     }
 
     /** Minimal Google polyline encoder for tests. */

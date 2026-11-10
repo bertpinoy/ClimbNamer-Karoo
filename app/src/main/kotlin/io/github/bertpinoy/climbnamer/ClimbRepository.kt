@@ -30,6 +30,7 @@ data class ActiveRoute(
     val name: String,
     val routeDistance: Double,
     val climbs: List<NamedClimb>,
+    val diagnostics: String = "",
 )
 
 /** Where the rider is on the route. */
@@ -79,6 +80,7 @@ object ClimbRepository {
             name = climbs.name,
             routeDistance = climbs.routeDistance,
             climbs = climbs.climbs.map { NamedClimb(it, cache.get(it)) },
+            diagnostics = climbs.diagnostics,
         )
         Timber.i("Route '${climbs.name}' with ${climbs.climbs.size} climbs")
         if (lookup) startLookups(cache, namer, scope, allowNominatim)

@@ -49,7 +49,7 @@ class NameCache(context: Context) {
     }
 
     companion object {
-        private const val VERSION = 1
+        private const val VERSION = 2
         fun key(c: ClimbGeo): String {
             fun r(v: Double) = String.format(Locale.US, "%.3f", v)
             return "v$VERSION:${r(c.start.lat)},${r(c.start.lng)}>${r(c.top.lat)},${r(c.top.lng)}"
