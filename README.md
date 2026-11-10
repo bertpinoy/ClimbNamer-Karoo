@@ -9,7 +9,7 @@ the Hammerhead dashboard.
 
 > **Not affiliated with Hammerhead or SRAM.** ClimbNamer is an independent project.
 
-> **Status: early development (0.1.0).** Builds on GitHub; not yet tested on a Karoo.
+> **Status: early development.** Tested on a Karoo; see the [releases](https://github.com/bertpinoy/ClimbNamer-Karoo/releases).
 
 ## What it does
 
@@ -22,7 +22,7 @@ You decide where names appear. Everything can be switched on or off in the Climb
 | | Where | Settings |
 |---|---|---|
 | 1 | **"Climb name" data field**: the current climb with distance to go, or the next climb | Add it to a ride page (or not); show the next climb when not climbing |
-| 2 | **Alert** with the name when a climb starts | On/off; at the start or 250 m / 500 m / 1 km before; 5–30 s; also for unnamed climbs |
+| 2 | **Alert** with the name when a climb starts | On/off; at the start or 250 m / 500 m / 1 km before; 5, 8 or 15 s; also for unnamed climbs |
 | 3 | **Map labels**: the name as a summit marker at the top of each climb | On/off |
 | | **Looking up names** when a route is loaded | On/off; Nominatim fallback on/off; clear stored names |
 
@@ -37,16 +37,31 @@ Same approach as the browser extension, using OpenStreetMap:
 2. otherwise the **road** the climb mostly follows (in Flanders often the climb's name);
 3. otherwise *Climb near &lt;village&gt;*.
 
-Requests go through the Karoo's own connection (Wi-Fi or the companion app). Fair use of the
-free OpenStreetMap services: one small Overpass query per climb, mirrors tried one after another,
-Nominatim (optional) at most once per second, results cached, and every request identifies the
-app as `ClimbNamer-Karoo/<version>`.
+Requests go through the Karoo's own connection: **Wi-Fi, or the companion app on your phone over
+Bluetooth**. The Karoo often switches Wi-Fi off once a route is loaded; with the companion app
+connected, names are still looked up in the background as you ride. If there is no connection,
+ClimbNamer retries after 1, 2, 5, 10, 15 and 30 minutes, then stops until the route is reloaded.
+
+Fair use of the free OpenStreetMap services: one small Overpass query per climb, mirrors tried one
+after another, Nominatim (optional) at most once per second, results cached, limited retries, and
+every request identifies the app as `ClimbNamer-Karoo/<version>`.
+
+### Navigating to a route from elsewhere
+
+When you start navigation away from the route (e.g. at home), the Karoo first guides you to the
+nearest part of the route and measures climbs along that whole path: approach + route from where
+you join it. ClimbNamer places climbs the same way, so climbs on the approach are named too
+(shown as "on the way to the start"). The Karoo only lists climbs from where you join the route,
+so climbs on the part of the route before that point don't appear, in the Climber either.
+
+The "Current route" section in the app shows each climb's position and a diagnostics line: route
+length, approach length, where you join the route, and whether the elevation profile could be used.
 
 ### Not possible (yet)
 
 - **Pre-loading your latest routes at start-up.** The Karoo extension SDK only exposes the route
   that is being navigated, not the list of saved routes. Names are looked up as soon as a route is
-  loaded, best done before the ride on Wi-Fi.
+  loaded, over Wi-Fi or the companion app.
 - **Changing the Climber screens** (see above).
 
 ## Install on a Karoo

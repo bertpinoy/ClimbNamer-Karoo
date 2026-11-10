@@ -148,7 +148,8 @@ private fun SettingsScreen() {
             r.climbs.forEach { c ->
                 val status = when {
                     c.name != null -> c.name.detail.ifEmpty { c.name.source }
-                    c.lookupFailed -> "lookup failed"
+                    c.lookupFailed && c.retrying -> "no connection yet · will retry"
+                    c.lookupFailed -> "lookup failed · reload the route to try again"
                     else -> "looking up…"
                 }
                 val g = c.geo

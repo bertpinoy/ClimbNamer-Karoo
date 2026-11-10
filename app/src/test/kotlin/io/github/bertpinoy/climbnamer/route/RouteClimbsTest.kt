@@ -132,7 +132,7 @@ class RouteClimbsTest {
         assertTrue(!c.onApproach)
         assertTrue("starts ~4.5 km from the route start", abs(Geo.haversine(origin, c.start) - 4500) < 80)
         assertEquals(approachLen + straightTotal - Geo.haversine(origin, join), result.routeDistance, 80.0)
-        assertTrue(result.diagnostics.contains("Karoo says"))
+        assertTrue(result.diagnostics.contains("Karoo: approach"))
     }
 
     @Test

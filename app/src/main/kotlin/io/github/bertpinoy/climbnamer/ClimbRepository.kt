@@ -7,6 +7,7 @@ import io.github.bertpinoy.climbnamer.route.ClimbGeo
 import io.github.bertpinoy.climbnamer.route.RouteClimbs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,6 +20,8 @@ data class NamedClimb(
     val geo: ClimbGeo,
     val name: ClimbName? = null,
     val lookupFailed: Boolean = false,
+    /** The failed lookup will be tried again automatically. */
+    val retrying: Boolean = false,
 ) {
     /** Name to show, or a fallback like "Climb 3". */
     val label: String get() = name?.takeIf { it.source != "none" }?.name ?: "Climb ${geo.index + 1}"
@@ -72,8 +75,9 @@ object ClimbRepository {
             return
         }
         if (_route.value?.key == climbs.key) {
-            // Same route again (e.g. a reroute event): only resume missing lookups.
-            if (lookup) startLookups(cache, namer, scope, allowNominatim)
+            // Same route again (e.g. a reroute event or a settings change): resume missing
+            // lookups, or stop them (including pending retries) when lookups were switched off.
+            if (lookup) startLookups(cache, namer, scope, allowNominatim) else lookupJob?.cancel()
             return
         }
         lookupJob?.cancel()
@@ -89,27 +93,43 @@ object ClimbRepository {
         if (lookup) startLookups(cache, namer, scope, allowNominatim)
     }
 
-    /** Looks up names that are not cached yet, one climb at a time. */
+    /**
+     * Retry schedule (minutes) for climbs whose lookup failed, e.g. without Wi-Fi or a connected
+     * companion app. The Karoo SDK has no "connection available" event, so retries are timed;
+     * after the last one (about an hour in total) ClimbNamer stops until the route is reloaded.
+     */
+    private val retryMinutes = listOf(1L, 2L, 5L, 10L, 15L, 30L)
+
+    /** Looks up names that are not cached yet, one climb at a time, retrying failures later. */
     fun startLookups(cache: NameCache, namer: ClimbNamer, scope: CoroutineScope, allowNominatim: Boolean) {
         if (lookupJob?.isActive == true) return
-        val route = _route.value ?: return
+        val routeKey = _route.value?.key ?: return
         lookupJob = scope.launch {
-            for (climb in route.climbs) {
-                if (climb.name != null) continue
-                val name = namer.name(climb.geo, allowNominatim)
-                if (name != null) cache.put(climb.geo, name)
-                _route.update { r ->
-                    if (r?.key != route.key) {
-                        r
-                    } else {
-                        r.copy(
-                            climbs = r.climbs.map {
-                                if (it.geo.index == climb.geo.index) it.copy(name = name, lookupFailed = name == null) else it
-                            },
-                        )
+            var attempt = 0
+            while (true) {
+                val todo = _route.value?.takeIf { it.key == routeKey }?.climbs?.filter { it.name == null } ?: return@launch
+                if (todo.isEmpty()) return@launch
+                val retryLeft = attempt < retryMinutes.size
+                for (climb in todo) {
+                    updateClimb(routeKey, climb.geo.index) { it.copy(lookupFailed = false, retrying = false) }
+                    val name = namer.name(climb.geo, allowNominatim)
+                    if (name != null) cache.put(climb.geo, name)
+                    updateClimb(routeKey, climb.geo.index) {
+                        it.copy(name = name, lookupFailed = name == null, retrying = name == null && retryLeft)
                     }
                 }
+                val stillMissing = _route.value?.takeIf { it.key == routeKey }?.climbs?.any { it.name == null } ?: false
+                if (!stillMissing || !retryLeft) return@launch
+                val wait = retryMinutes[attempt++]
+                Timber.i("Name lookup failed for some climbs; retrying in $wait min")
+                delay(wait * 60_000)
             }
+        }
+    }
+
+    private fun updateClimb(routeKey: String, index: Int, change: (NamedClimb) -> NamedClimb) {
+        _route.update { r ->
+            if (r?.key != routeKey) r else r.copy(climbs = r.climbs.map { if (it.geo.index == index) change(it) else it })
         }
     }
 

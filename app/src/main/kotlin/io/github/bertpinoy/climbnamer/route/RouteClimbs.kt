@@ -167,7 +167,7 @@ object RouteClimbsBuilder {
             append(String.format(Locale.US, "route %.1f km (polyline %.1f km)", routeTotal / 1000, route.length / 1000))
             if (approach != null) {
                 append(String.format(Locale.US, " · approach %.1f km, joins route at %.1f km", approachLength / 1000, joinAt / 1000))
-                if (rejoinDistance != null) append(String.format(Locale.US, " (Karoo says %.1f km)", rejoinDistance / 1000))
+                if (rejoinDistance != null) append(String.format(Locale.US, " (Karoo: approach %.1f km)", rejoinDistance / 1000))
             }
             append(" · ${climbs.size} climbs")
             if (beyond > 0) append(" ($beyond beyond the end!)")
