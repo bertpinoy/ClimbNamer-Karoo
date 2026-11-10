@@ -53,7 +53,8 @@ object SettingsStore {
             alertTiming = runCatching { AlertTiming.valueOf(p.getString("alertTiming", null) ?: "") }
                 .getOrDefault(d.alertTiming),
             alertBeforeMeters = p.getInt("alertBeforeMeters", d.alertBeforeMeters),
-            alertSeconds = p.getInt("alertSeconds", d.alertSeconds),
+            // 30 s was an option in 0.1.0; it's now 5, 8 or 15 s.
+            alertSeconds = p.getInt("alertSeconds", d.alertSeconds).coerceAtMost(15),
             alertUnnamedClimbs = p.getBoolean("alertUnnamedClimbs", d.alertUnnamedClimbs),
             mapLabelsEnabled = p.getBoolean("mapLabelsEnabled", d.mapLabelsEnabled),
         )

@@ -39,6 +39,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -69,6 +70,7 @@ private fun SettingsScreen() {
     val context = LocalContext.current
     val settings by remember { SettingsStore.flow(context) }.collectAsState(initial = SettingsStore.get(context))
     val route by ClimbRepository.route.collectAsState()
+    val units by ClimbRepository.units.collectAsState()
     val cache = remember { NameCache(context) }
     var cacheSize by remember { mutableIntStateOf(cache.size) }
 
@@ -113,7 +115,7 @@ private fun SettingsScreen() {
                     update { it.copy(alertBeforeMeters = v) }
                 }
             }
-            Choices("Show for", listOf("5 s" to 5, "8 s" to 8, "15 s" to 15, "30 s" to 30), settings.alertSeconds) { v ->
+            Choices("Show for", listOf("5 s" to 5, "8 s" to 8, "15 s" to 15), settings.alertSeconds) { v ->
                 update { it.copy(alertSeconds = v) }
             }
             Toggle("Also alert climbs without a name", settings.alertUnnamedClimbs) { v ->
@@ -148,7 +150,16 @@ private fun SettingsScreen() {
                     c.lookupFailed -> "lookup failed"
                     else -> "looking up…"
                 }
-                Text("${c.geo.index + 1}. ${c.label}  ·  $status", color = Mist, fontSize = 12.sp)
+                val g = c.geo
+                Column(Modifier.padding(vertical = 3.dp)) {
+                    Text("${g.index + 1}. ${c.label}", color = Color.White, fontSize = 13.sp)
+                    Text(
+                        "at ${units.distance(g.startDistance)} · ${units.climbStats(g.length, g.grade, g.totalElevation)}",
+                        color = Orange,
+                        fontSize = 11.sp,
+                    )
+                    Text(status, color = Mist, fontSize = 11.sp)
+                }
             }
         }
 
@@ -214,12 +225,14 @@ private fun Toggle(label: String, checked: Boolean, onChange: (Boolean) -> Unit)
 private fun <T> Choices(label: String, options: List<Pair<String, T>>, selected: T, onSelect: (T) -> Unit) {
     Column(Modifier.padding(start = 12.dp, bottom = 4.dp)) {
         Text(label, color = Mist, fontSize = 12.sp)
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        // Options share the width evenly, so none gets squeezed off the narrow Karoo screen.
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             options.forEach { (text, value) ->
                 FilterChip(
                     selected = value == selected,
                     onClick = { onSelect(value) },
-                    label = { Text(text) },
+                    label = { Text(text, maxLines = 1, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center) },
+                    modifier = Modifier.weight(1f),
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = Orange,
                         selectedLabelColor = Color.White,
