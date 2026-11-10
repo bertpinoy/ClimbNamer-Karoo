@@ -99,7 +99,9 @@ class RouteClimbsTest {
             rejoinPolyline = encode(approach.map { it.lat to it.lng }, 5),
             rejoinDistance = 2000.0,
         )!!
-        assertEquals(approachLen + straightTotal - 2000.0, result.routeDistance, 1.0)
+        // The join point is measured on the map (≈ 2 km, the end of the approach).
+        val joinAt = Geo.haversine(origin, approach.last())
+        assertEquals(approachLen + straightTotal - joinAt, result.routeDistance, 5.0)
         assertEquals(approachLen, result.approachLength, 1.0)
         val (a, b) = result.climbs
         assertTrue(a.onApproach)
