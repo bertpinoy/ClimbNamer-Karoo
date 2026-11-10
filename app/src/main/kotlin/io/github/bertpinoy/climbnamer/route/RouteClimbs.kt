@@ -93,7 +93,15 @@ object RouteClimbsBuilder {
         val approach = rejoinPolyline?.takeIf { it.isNotEmpty() }
             ?.let { Path.of(Geo.decodePolyline(it, 5).map { p -> LatLng(p.first, p.second) }) }
         val approachLength = approach?.length ?: 0.0
-        val joinAt = if (approach != null) (rejoinDistance ?: 0.0).coerceIn(0.0, routeTotal) else 0.0
+        // Where the approach joins the route. The Karoo's rejoinDistance turned out to be
+        // unreliable (it reported the route's end while the approach joined mid-route), so the
+        // join point is taken from the map: the route point closest to the end of the approach.
+        val geoJoin = approach?.let { route.closestDistanceTo(it.end) }
+        val joinAt = when {
+            approach == null -> 0.0
+            geoJoin != null -> (geoJoin / routeScale).coerceIn(0.0, routeTotal)
+            else -> (rejoinDistance ?: 0.0).coerceIn(0.0, routeTotal)
+        }
         val total = approachLength + (routeTotal - joinAt)
 
         /** Position along the navigated path: approach first, then the route from the join point. */
@@ -159,6 +167,7 @@ object RouteClimbsBuilder {
             append(String.format(Locale.US, "route %.1f km (polyline %.1f km)", routeTotal / 1000, route.length / 1000))
             if (approach != null) {
                 append(String.format(Locale.US, " · approach %.1f km, joins route at %.1f km", approachLength / 1000, joinAt / 1000))
+                if (rejoinDistance != null) append(String.format(Locale.US, " (Karoo says %.1f km)", rejoinDistance / 1000))
             }
             append(" · ${climbs.size} climbs")
             if (beyond > 0) append(" ($beyond beyond the end!)")
@@ -204,6 +213,32 @@ object RouteClimbsBuilder {
 /** A polyline with cumulative distances, for finding the point at a given distance. */
 class Path private constructor(private val coords: List<LatLng>, private val cum: DoubleArray) {
     val length: Double get() = cum.last()
+    val end: LatLng get() = coords.last()
+
+    /**
+     * Distance along this path of the point closest to [p]. When several parts of the path are
+     * (almost) equally close, e.g. the shared start/end of a loop, the earliest one wins:
+     * after joining, the Karoo follows the route forwards from there.
+     */
+    fun closestDistanceTo(p: LatLng): Double {
+        var best = Double.MAX_VALUE
+        val candidates = ArrayList<Pair<Double, Double>>() // (offset m, distance along)
+        for (i in 1 until coords.size) {
+            val a = coords[i - 1]
+            val b = coords[i]
+            val offset = Geo.distToSegment(p, a, b)
+            // Position of the projection along the segment.
+            val k = Math.cos(Math.toRadians(p.lat))
+            val dx = (b.lng - a.lng) * k
+            val dy = b.lat - a.lat
+            val len2 = dx * dx + dy * dy
+            val t = if (len2 > 0) ((((p.lng - a.lng) * k) * dx + (p.lat - a.lat) * dy) / len2).coerceIn(0.0, 1.0) else 0.0
+            val along = cum[i - 1] + t * (cum[i] - cum[i - 1])
+            candidates += offset to along
+            if (offset < best) best = offset
+        }
+        return candidates.filter { it.first <= best + 30.0 }.minOf { it.second }
+    }
 
     fun pointAt(distance: Double): LatLng {
         val d = distance.coerceIn(0.0, length)

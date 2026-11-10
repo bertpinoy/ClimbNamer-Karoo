@@ -110,6 +110,38 @@ class RouteClimbsTest {
     }
 
     @Test
+    fun joinPointComesFromTheMapNotFromRejoinDistance() {
+        // Seen on a Karoo: the approach joins the route at ~4 km, but rejoinDistance says the
+        // route's end. A climb 500 m after the join must be placed at route km 4.5.
+        val join = straightRoute[40] // ~4 km
+        val approach = (0..30).map { LatLng(join.lat, join.lng - 0.042 + it * 0.0014) } // ~3 km east, ends at join
+        val approachLen = (1 until approach.size).sumOf { Geo.haversine(approach[it - 1], approach[it]) }
+        val climbs = listOf(OnNavigationState.NavigationState.Climb(approachLen + 500.0, 1000.0, 5.0, 50.0))
+        val result = RouteClimbsBuilder.build(
+            name = "Mid-route join",
+            polyline = encode(straightRoute.map { it.lat to it.lng }, 5),
+            elevationPolyline = null,
+            routeDistance = straightTotal,
+            climbs = climbs,
+            rejoinPolyline = encode(approach.map { it.lat to it.lng }, 5),
+            rejoinDistance = straightTotal, // what the Karoo reported
+        )!!
+        val c = result.climbs.single()
+        assertTrue(!c.onApproach)
+        assertTrue("starts ~4.5 km from the route start", abs(Geo.haversine(origin, c.start) - 4500) < 80)
+        assertEquals(approachLen + straightTotal - Geo.haversine(origin, join), result.routeDistance, 80.0)
+        assertTrue(result.diagnostics.contains("Karoo says"))
+    }
+
+    @Test
+    fun joiningALoopAtItsSharedStartEndPicksTheStart() {
+        // A loop: out 5 km north, back 5 km south, ending where it started.
+        val loop = straightRoute.take(51) + straightRoute.take(50).reversed()
+        val path = Path.of(loop)!!
+        assertEquals(0.0, path.closestDistanceTo(origin), 1.0)
+    }
+
+    @Test
     fun climbBeyondPathEndUsesOnlyExistingPart() {
         // Loop route joined at its end: the path is the approach only, and the last climb
         // runs 1 km past it. Its points must not pile up at the end of the path.
