@@ -74,10 +74,14 @@ Karoo, spaced retries, and every request identifies the app as `ClimbNamer-Karoo
 ### Navigating to a route from elsewhere
 
 When you start navigation away from the route (e.g. at home), the Karoo first guides you to the
-nearest part of the route and measures climbs along that whole path: approach + route from where
-you join it. ClimbNamer places climbs the same way, so climbs on the approach are named too
-(shown as "on the way to the start"). The Karoo only lists climbs from where you join the route,
-so climbs on the part of the route before that point don't appear, in the Climber either.
+nearest part of the route and then follows the route from there to its end. While you're on your
+way, the Karoo only lists the climbs on that approach, not the ones on the route. ClimbNamer
+therefore uses the Karoo's climbs for the approach (shown as "on the way to the start") and
+**detects the climbs on the route part you'll ride itself**, from the route's elevation profile,
+so all climbs are known and named as soon as the route is loaded. The detection is tuned against
+Hammerhead's own: it finds the same climbs, within about 100–200 m, though it can occasionally
+split a long climb in two. Climbs on the part of the route before the point where you join it
+aren't ridden, so they aren't included.
 
 The "Current route" section in the app shows each climb's position and a diagnostics line: route
 length, approach length, where you join the route, and whether the elevation profile could be used.

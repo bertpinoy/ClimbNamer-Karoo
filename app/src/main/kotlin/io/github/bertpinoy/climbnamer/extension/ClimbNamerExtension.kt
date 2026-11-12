@@ -100,8 +100,8 @@ class ClimbNamerExtension : KarooExtension("climbnamer", BuildConfig.VERSION_NAM
             val hasApproach: Boolean = (nav.state as? OnNavigationState.NavigationState.NavigatingRoute)?.rejoinPolyline != null
             val notMovedYet: Boolean = ClimbRepository.progress.value.distanceAlongRoute == null
             val rebuild: Boolean = key != lastKey ||
-                (hasClimbs && !lastHadClimbs) ||
-                (hasClimbs && hasApproach && !lastHadApproach && notMovedYet)
+                (hasClimbs && !lastHadClimbs && notMovedYet) ||
+                (hasApproach && !lastHadApproach && notMovedYet)
             if (rebuild) {
                 lastKey = key
                 lastHadClimbs = hasClimbs

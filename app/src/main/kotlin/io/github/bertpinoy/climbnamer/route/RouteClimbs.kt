@@ -86,7 +86,6 @@ object RouteClimbsBuilder {
         rejoinPolyline: String? = null,
         rejoinDistance: Double? = null,
     ): RouteClimbs? {
-        if (climbs.isEmpty()) return null
         val route: Path = Path.of(Geo.decodePolyline(polyline, 5).map { LatLng(it.first, it.second) }) ?: return null
         val routeTotal: Double = routeDistance?.takeIf { it > 0 } ?: route.length
         // Karoo route distances and our geometric distances differ slightly: scale to match.
@@ -119,6 +118,25 @@ object RouteClimbsBuilder {
         // The elevation profile covers the route only (not the approach).
         val (profile: List<Pair<Double, Double>>?, profileStatus: ProfileStatus) = readProfile(elevationPolyline, routeTotal)
 
+        // Which climbs to use. Navigating from elsewhere, the Karoo only lists climbs on the way to
+        // the route, so the climbs on the route part that will be ridden (from the join point) are
+        // detected from the route's elevation profile. Otherwise the Karoo's own list is used.
+        val approachClimbs: List<OnNavigationState.NavigationState.Climb> =
+            if (approach != null) climbs.filter { it.startDistance < approachLength } else climbs
+        val detected: List<OnNavigationState.NavigationState.Climb> = if (approach != null && profile != null) {
+            val approachEnd: Double = approachClimbs.maxOfOrNull { it.startDistance + it.length } ?: 0.0
+            ClimbDetector.detect(profile, joinAt, routeTotal)
+                .map { c: ClimbDetector.Climb ->
+                    OnNavigationState.NavigationState.Climb(approachLength + (c.start - joinAt), c.length, c.grade, c.gain)
+                }
+                .filter { it.startDistance >= approachEnd - 50.0 }
+        } else {
+            emptyList()
+        }
+        val used: List<OnNavigationState.NavigationState.Climb> =
+            if (approach != null && profile != null) approachClimbs + detected else climbs
+        if (used.isEmpty()) return null
+
         fun elevationAt(distance: Double): Double? {
             val p: List<Pair<Double, Double>> = profile ?: return null
             if (distance < approachLength) return null
@@ -128,7 +146,7 @@ object RouteClimbsBuilder {
             return best.second
         }
 
-        val result: List<ClimbGeo> = climbs.sortedBy { it.startDistance }.mapIndexed { i, c ->
+        val result: List<ClimbGeo> = used.sortedBy { it.startDistance }.mapIndexed { i, c ->
             val start: Double = c.startDistance
             // A climb can run past the end of the navigated path (e.g. when the Karoo joins a loop
             // route at its end). Only use the part that exists; squeezing the rest onto the last
@@ -164,18 +182,22 @@ object RouteClimbsBuilder {
             )
         }
 
-        val beyond: Int = climbs.count { it.startDistance + it.length > total * 1.02 }
+        val beyond: Int = used.count { it.startDistance + it.length > total * 1.02 }
         val diagnostics: String = buildString {
             append(String.format(Locale.US, "route %.1f km (polyline %.1f km)", routeTotal / 1000, route.length / 1000))
             if (approach != null) {
                 append(String.format(Locale.US, " · approach %.1f km, joins route at %.1f km", approachLength / 1000, joinAt / 1000))
                 if (rejoinDistance != null) append(String.format(Locale.US, " (Karoo: approach %.1f km)", rejoinDistance / 1000))
             }
-            append(" · ${climbs.size} climbs")
+            if (approach != null && profile != null) {
+                append(" · ${approachClimbs.size} climbs from the Karoo on the approach, ${detected.size} detected on the route")
+            } else {
+                append(" · ${used.size} climbs")
+            }
             if (beyond > 0) append(" ($beyond beyond the end!)")
             append(" · elevation profile ${profileStatus.name.lowercase(Locale.US)} · reversed=$reversed")
         }
-        val key: String = "${polyline.hashCode()}:${climbs.hashCode()}:${total.toInt()}"
+        val key: String = "${polyline.hashCode()}:${used.hashCode()}:${total.toInt()}"
         return RouteClimbs(
             key = key,
             name = name,
