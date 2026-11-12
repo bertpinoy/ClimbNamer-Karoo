@@ -18,8 +18,7 @@ object ClimbDetector {
     private const val MIN_GAIN: Double = 20.0      // smallest climb: +20 m …
     private const val MIN_LENGTH: Double = 300.0   // … over at least 300 m …
     private const val MIN_GRADE: Double = 3.0      // … at 3 % or more on average
-    private const val DIP_MIN: Double = 10.0       // a dip of up to 10 m …
-    private const val DIP_RELATIVE: Double = 0.3   // … or 30 % of the height gained doesn't end a climb
+    private const val MAX_DIP: Double = 8.0        // a dip of up to 8 m doesn't end a climb …
     private const val PLATEAU: Double = 800.0      // nor does up to 800 m without a new high point
     private const val RUN_UP_GRADE: Double = 2.5   // a gentler run-up is trimmed off the start
 
@@ -70,8 +69,7 @@ object ClimbDetector {
                 k++
                 if (s[k].second > s[top].second) top = k
                 val drop: Double = s[top].second - s[k].second
-                val gained: Double = s[top].second - s[st].second
-                if (drop > max(DIP_MIN, DIP_RELATIVE * gained) || s[k].first - s[top].first > PLATEAU) break
+                if (drop > MAX_DIP || s[k].first - s[top].first > PLATEAU) break
             }
             // Within that stretch, the valid part with the most height gain (then the longest).
             var bestA: Int = -1

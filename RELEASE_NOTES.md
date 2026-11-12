@@ -1,1 +1,2 @@
-The activity log now says why a climb was named via the Overpass backup instead of Nominatim (for example "Nominatim: no answer in time"), so slow lookups are easier to understand.
+- Climb detection on the route (when navigating from elsewhere) now treats a dip of more than 8 m as the end of a climb, like Hammerhead does. Two climbs separated by a clear dip are no longer merged into one. Checked against 442 climbs on 53 routes: no merged climbs left.
+- The activity log now says why a climb was named via the Overpass backup instead of Nominatim (for example "Nominatim: no answer in time"), so slow lookups are easier to understand.

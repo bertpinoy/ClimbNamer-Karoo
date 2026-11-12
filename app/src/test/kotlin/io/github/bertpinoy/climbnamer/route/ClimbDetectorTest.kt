@@ -39,20 +39,37 @@ class ClimbDetectorTest {
     }
 
     @Test
-    fun dipHalfwayKeepsOneClimb() {
-        // Up 60 m, down 15 m, up 50 m again (like the Kemmelberg): one climb.
+    fun smallDipKeepsOneClimb() {
+        // Up 60 m, down 6 m, up 50 m again: one climb.
         val p: List<Pair<Double, Double>> = profile(5000.0) { d: Double ->
             when {
                 d < 1000 -> 40.0
                 d < 2200 -> 40.0 + (d - 1000) * 0.05      // to 100
-                d < 2500 -> 100.0 - (d - 2200) * 0.05     // down to 85
-                d < 3500 -> 85.0 + (d - 2500) * 0.05      // up to 135
-                else -> 135.0
+                d < 2320 -> 100.0 - (d - 2200) * 0.05     // down to 94
+                d < 3320 -> 94.0 + (d - 2320) * 0.05      // up to 144
+                else -> 144.0
             }
         }
         val climbs: List<ClimbDetector.Climb> = ClimbDetector.detect(p, 0.0, 5000.0)
         assertEquals(1, climbs.size)
-        assertTrue("whole climb ~2.5 km, was ${climbs.single().length}", climbs.single().length > 2000)
+        assertTrue("whole climb ~2.3 km, was ${climbs.single().length}", climbs.single().length > 2000)
+    }
+
+    @Test
+    fun clearDipSplitsTheClimb() {
+        // Like "TFC clubrit" at 43.6–46.4 km: up 78 m, down 15 m, up 27 m. Hammerhead counts two climbs.
+        val p: List<Pair<Double, Double>> = profile(5000.0) { d: Double ->
+            when {
+                d < 1000 -> 49.0
+                d < 2800 -> 49.0 + (d - 1000) * 78.0 / 1800   // to 127
+                d < 3300 -> 127.0 - (d - 2800) * 0.03         // down to 112
+                d < 3800 -> 112.0 + (d - 3300) * 0.054        // up to 139
+                else -> 139.0
+            }
+        }
+        val climbs: List<ClimbDetector.Climb> = ClimbDetector.detect(p, 0.0, 5000.0)
+        assertEquals("climbs: $climbs", 2, climbs.size)
+        assertTrue("second climb starts ~3.3 km, was ${climbs[1].start}", abs(climbs[1].start - 3300) < 200)
     }
 
     @Test
