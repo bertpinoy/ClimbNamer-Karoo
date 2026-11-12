@@ -42,6 +42,13 @@ Same approach as the browser extension, using OpenStreetMap:
 2. otherwise the **road** the climb mostly follows (in Flanders often the climb's name);
 3. otherwise *Climb near &lt;village&gt;*.
 
+Names are found in this order, fastest first:
+
+1. the **built-in list of named hills and passes** in Belgium, the Netherlands and Luxembourg
+   (1,149 places from OpenStreetMap): instant, without any connection;
+2. **Nominatim**: a few seconds per climb;
+3. **Overpass**: only when Nominatim fails (it is often slow or busy).
+
 Requests go through the Karoo's own connection: **Wi-Fi, or the companion app on your phone over
 Bluetooth**. The Karoo often switches Wi-Fi off once a route is loaded; with the companion app
 connected, names are still looked up in the background as you ride. If there is no connection,
@@ -60,9 +67,9 @@ climbs you skipped count as passed once you're beyond them. Climbs on a detour i
 The app's "Activity" section lists what ClimbNamer did and when: route loaded, names looked up or
 not (with the reason), alerts and Control Center updates. Handy to understand a ride afterwards.
 
-Fair use of the free OpenStreetMap services: one small Overpass query per climb, mirrors tried one
-after another, Nominatim (optional) at most once per second, results cached, limited retries, and
-every request identifies the app as `ClimbNamer-Karoo/<version>`.
+Fair use of the free OpenStreetMap services: Nominatim at most once per second (3–4 requests per
+climb), Overpass only as a backup with mirrors tried one after another, results stored on the
+Karoo, spaced retries, and every request identifies the app as `ClimbNamer-Karoo/<version>`.
 
 ### Navigating to a route from elsewhere
 
@@ -143,4 +150,4 @@ these repository secrets: `SIGNING_KEYSTORE_BASE64`, `SIGNING_KEYSTORE_PASSWORD`
 Copyright 2026 bertpinoy. Licensed under the [Apache License 2.0](LICENSE).
 The Gradle wrapper files come from [karoo-ext](https://github.com/hammerheadnav/karoo-ext) (Apache-2.0).
 
-Map data © OpenStreetMap contributors (ODbL).
+Map data © OpenStreetMap contributors (ODbL); see [DATA-LICENSE.md](DATA-LICENSE.md).

@@ -141,7 +141,7 @@ private fun SettingsScreen() {
             fontSize = 12.sp,
             modifier = Modifier.padding(bottom = 6.dp),
         )
-        Toggle("Use Nominatim when Overpass is busy", settings.nominatimFallback) { v ->
+        Toggle("Use Nominatim (fastest; Overpass is the backup)", settings.nominatimFallback) { v ->
             update { it.copy(nominatimFallback = v) }
         }
         Toggle("Show progress in the Control Center", settings.syncNotifications) { v ->

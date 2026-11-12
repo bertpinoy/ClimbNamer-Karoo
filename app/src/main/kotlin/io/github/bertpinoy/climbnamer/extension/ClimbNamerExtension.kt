@@ -12,6 +12,7 @@ import io.github.bertpinoy.climbnamer.R
 import io.github.bertpinoy.climbnamer.Units
 import io.github.bertpinoy.climbnamer.naming.ClimbNamer
 import io.github.bertpinoy.climbnamer.naming.NameCache
+import io.github.bertpinoy.climbnamer.naming.Summits
 import io.github.bertpinoy.climbnamer.route.RouteClimbsBuilder
 import io.github.bertpinoy.climbnamer.settings.AlertTiming
 import io.github.bertpinoy.climbnamer.settings.ClimbSettings
@@ -66,7 +67,7 @@ class ClimbNamerExtension : KarooExtension("climbnamer", BuildConfig.VERSION_NAM
         ActivityLog.add("ClimbNamer ${BuildConfig.VERSION_NAME} started")
         karoo = KarooSystemService(applicationContext)
         cache = NameCache(applicationContext)
-        namer = ClimbNamer(karoo)
+        namer = ClimbNamer(karoo, Summits(applicationContext))
         karoo.connect { connected -> Timber.i("Karoo system connected: $connected") }
 
         watchRoute()

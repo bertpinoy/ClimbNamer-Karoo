@@ -30,31 +30,43 @@ import java.util.Locale
  * Fair use: mirrors are tried one after another, Nominatim gets at most 1 request/second,
  * and every request identifies the app.
  */
-class ClimbNamer(private val karoo: KarooSystemService) {
+class ClimbNamer(private val karoo: KarooSystemService, private val summits: Summits) {
     private val json: Json = Json { ignoreUnknownKeys = true }
     private val userAgent: String = "ClimbNamer-Karoo/${BuildConfig.VERSION_NAME} (+https://github.com/bertpinoy/ClimbNamer-Karoo)"
     private val headers: Map<String, String> = mapOf("User-Agent" to userAgent, "Accept" to "application/json")
 
-    /** The name, or why it couldn't be found. */
-    data class Result(val name: ClimbName?, val error: String?)
+    /** The name and where it came from, or why it couldn't be found. */
+    data class Result(val name: ClimbName?, val error: String?, val source: String = "", val millis: Long = 0)
 
+    /**
+     * Fastest first: the bundled list of named hills and passes (instant, offline), then Nominatim
+     * (a few seconds per climb, also over the companion app), then Overpass (often slow or busy).
+     */
     suspend fun name(climb: ClimbGeo, allowNominatim: Boolean): Result {
+        val started: Long = System.currentTimeMillis()
+        fun elapsed(): Long = System.currentTimeMillis() - started
+        summits.near(climb.top)?.let { s: Summits.Summit ->
+            return Result(ClimbName(s.name, "", "summit"), null, "built-in hill list", elapsed())
+        }
+        var nominatimError: String? = null
+        if (allowNominatim) {
+            try {
+                return Result(withNominatim(climb), null, "Nominatim", elapsed())
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException && e !is kotlinx.coroutines.TimeoutCancellationException) throw e
+                Timber.w(e, "Nominatim failed for climb ${climb.index}")
+                nominatimError = describe(e)
+            }
+        }
         val overpassError: String = try {
-            return Result(withOverpass(climb), null)
+            return Result(withOverpass(climb), null, "Overpass", elapsed())
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException && e !is kotlinx.coroutines.TimeoutCancellationException) throw e
             Timber.w(e, "Overpass failed for climb ${climb.index}")
             describe(e)
         }
-        if (!allowNominatim) return Result(null, "Overpass: $overpassError")
-        val nominatimError: String = try {
-            return Result(withNominatim(climb), null)
-        } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException && e !is kotlinx.coroutines.TimeoutCancellationException) throw e
-            Timber.w(e, "Nominatim failed for climb ${climb.index}")
-            describe(e)
-        }
-        return Result(null, "Overpass: $overpassError; Nominatim: $nominatimError")
+        val errors: String = listOfNotNull(nominatimError?.let { "Nominatim: $it" }, "Overpass: $overpassError").joinToString("; ")
+        return Result(null, errors, "", elapsed())
     }
 
     private fun describe(e: Exception): String = when (e) {
@@ -177,7 +189,7 @@ class ClimbNamer(private val karoo: KarooSystemService) {
         val wait: Long = nominatimLastAt + 1100 - System.currentTimeMillis()
         if (wait > 0) delay(wait)
         nominatimLastAt = System.currentTimeMillis()
-        val res: HttpResult = karoo.http("GET", "https://nominatim.openstreetmap.org$path", headers)
+        val res: HttpResult = karoo.http("GET", "https://nominatim.openstreetmap.org$path", headers, timeoutMs = 20_000)
         if (!res.ok || res.body == null) throw IllegalStateException("${if (res.status > 0) "HTTP ${res.status}" else ""} ${res.error ?: ""}".trim())
         res.body
     }
@@ -197,13 +209,16 @@ class ClimbNamer(private val karoo: KarooSystemService) {
                 candidates += Candidate(name, LatLng(lat, lon), kind)
             }
         }
-        if ((climb.topElevation ?: 0.0) >= 400) search("[mountain_pass=yes]", 0.005, Kind.PASS)
-        search("[natural=peak]", 0.007, Kind.PEAK)
+        // Inside Benelux the bundled list already holds every named summit in OpenStreetMap.
+        if (!summits.covers(top)) {
+            if ((climb.topElevation ?: 0.0) >= 400) search("[mountain_pass=yes]", 0.005, Kind.PASS)
+            search("[natural=peak]", 0.007, Kind.PEAK)
+        }
         val summit: Candidate? = pickSummit(top, candidates)
 
         val tally: LinkedHashMap<String, Int> = linkedMapOf<String, Int>()
         var place: String = ""
-        for (f in listOf(0.3, 0.75)) {
+        for (f in listOf(0.2, 0.5, 0.8)) {
             val p: LatLng = climb.points[((climb.points.size - 1) * f).toInt()]
             val body: String = nominatim(
                 String.format(Locale.US, "/reverse?format=jsonv2&lat=%.6f&lon=%.6f&zoom=17&layer=address&addressdetails=1", p.lat, p.lng),

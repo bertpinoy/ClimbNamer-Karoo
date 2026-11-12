@@ -15,7 +15,7 @@ data class ClimbSettings(
     // Looking up names
     /** Look up names as soon as a route (or destination) is loaded. */
     val lookupOnRouteLoad: Boolean = true,
-    /** Use Nominatim when Overpass is busy. */
+    /** Use Nominatim (fast) to look up names; Overpass is the backup. */
     val nominatimFallback: Boolean = true,
     /** Show the progress of looking up names as a Control Center notification. */
     val syncNotifications: Boolean = true,
