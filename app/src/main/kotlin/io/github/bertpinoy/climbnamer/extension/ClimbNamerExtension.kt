@@ -1,6 +1,10 @@
 package io.github.bertpinoy.climbnamer.extension
 
 import io.github.bertpinoy.climbnamer.ActiveRoute
+import io.hammerhead.karooext.models.OnLocationChanged
+import io.github.bertpinoy.climbnamer.route.Track
+import io.github.bertpinoy.climbnamer.route.LatLng
+import io.github.bertpinoy.climbnamer.ActivityLog
 import io.github.bertpinoy.climbnamer.BuildConfig
 import io.github.bertpinoy.climbnamer.ClimbRepository
 import io.github.bertpinoy.climbnamer.Progress
@@ -20,13 +24,11 @@ import io.github.bertpinoy.climbnamer.route.ClimbGeo
 import io.hammerhead.karooext.extension.DataTypeImpl
 import io.hammerhead.karooext.extension.KarooExtension
 import io.hammerhead.karooext.internal.Emitter
-import io.hammerhead.karooext.models.DataType
 import io.hammerhead.karooext.models.HideSymbols
 import io.hammerhead.karooext.models.InRideAlert
 import io.hammerhead.karooext.models.MapEffect
 import io.hammerhead.karooext.models.OnNavigationState
 import io.hammerhead.karooext.models.ShowSymbols
-import io.hammerhead.karooext.models.StreamState
 import io.hammerhead.karooext.models.Symbol
 import io.hammerhead.karooext.models.SystemNotification
 import io.hammerhead.karooext.models.UserProfile
@@ -60,6 +62,8 @@ class ClimbNamerExtension : KarooExtension("climbnamer", BuildConfig.VERSION_NAM
     override fun onCreate() {
         super.onCreate()
         if (Timber.treeCount == 0) Timber.plant(Timber.DebugTree())
+        ActivityLog.init(applicationContext)
+        ActivityLog.add("ClimbNamer ${BuildConfig.VERSION_NAME} started")
         karoo = KarooSystemService(applicationContext)
         cache = NameCache(applicationContext)
         namer = ClimbNamer(karoo)
@@ -81,18 +85,25 @@ class ClimbNamerExtension : KarooExtension("climbnamer", BuildConfig.VERSION_NAM
     // ------------------------------------------------------------------ route + names
 
     private fun watchRoute(): Job = scope.launch {
-        // Rebuild when the route or its climbs change, or when the approach to the route
-        // (rejoin path) becomes known for the same climbs. Not on every rejoin update, and not
-        // when the approach disappears after joining the route: the climb distances still count
-        // from where navigation started.
+        // The climb list is fixed per route. During a ride the Karoo drops climbs that are behind
+        // the rider from its list (and its distances change with it), which renumbered the climbs
+        // ("climb 2" became "climb 1") and broke the position. So the climbs are taken once: when a
+        // route with climbs is loaded, or when the approach to the route becomes known before the
+        // rider has moved along it. A different route (or stopping navigation) starts over.
         var lastKey: String? = null
+        var lastHadClimbs: Boolean = false
         var lastHadApproach: Boolean = false
         val navigation: Flow<OnNavigationState> = karoo.consumerFlow<OnNavigationState>().filter { nav ->
             val key: String = navKey(nav.state)
+            val hasClimbs: Boolean = climbsOf(nav.state).isNotEmpty()
             val hasApproach: Boolean = (nav.state as? OnNavigationState.NavigationState.NavigatingRoute)?.rejoinPolyline != null
-            val rebuild: Boolean = key != lastKey || (hasApproach && !lastHadApproach)
+            val notMovedYet: Boolean = ClimbRepository.progress.value.distanceAlongRoute == null
+            val rebuild: Boolean = key != lastKey ||
+                (hasClimbs && !lastHadClimbs) ||
+                (hasClimbs && hasApproach && !lastHadApproach && notMovedYet)
             if (rebuild) {
                 lastKey = key
+                lastHadClimbs = hasClimbs
                 lastHadApproach = hasApproach
             }
             rebuild
@@ -113,27 +124,33 @@ class ClimbNamerExtension : KarooExtension("climbnamer", BuildConfig.VERSION_NAM
             }
     }
 
+    /** Identifies the route being navigated (not its climbs, which the Karoo updates while riding). */
     private fun navKey(state: OnNavigationState.NavigationState): String = when (state) {
-        is OnNavigationState.NavigationState.NavigatingRoute ->
-            "route:${state.routePolyline.hashCode()}:${state.reversed}:${state.climbs.hashCode()}"
-        is OnNavigationState.NavigationState.NavigatingToDestination ->
-            "dest:${state.polyline.hashCode()}:${state.climbs.hashCode()}"
+        is OnNavigationState.NavigationState.NavigatingRoute -> "route:${state.routePolyline.hashCode()}:${state.reversed}"
+        is OnNavigationState.NavigationState.NavigatingToDestination -> "dest:${state.destination.lat},${state.destination.lng}"
         else -> "idle"
     }
 
+    private fun climbsOf(state: OnNavigationState.NavigationState): List<OnNavigationState.NavigationState.Climb> = when (state) {
+        is OnNavigationState.NavigationState.NavigatingRoute -> state.climbs
+        is OnNavigationState.NavigationState.NavigatingToDestination -> state.climbs
+        else -> emptyList()
+    }
+
     /**
-     * Distance along the navigated path = path length − distance to destination.
-     * The path includes the approach when navigation started away from the route, so the
-     * position is also used on the way to the start (off route); otherwise only on route.
+     * The rider's position along the navigated path, from GPS matched to ClimbNamer's own copy of
+     * the path (approach + route). Independent of the Karoo's distances, which change as climbs
+     * drop off its list. Off the path (detour), the last position is kept.
      */
     private fun watchProgress(): Job = scope.launch {
-        combine(karoo.streamDataFlow(DataType.Type.DISTANCE_TO_DESTINATION), ClimbRepository.route) { state, route ->
-            val values: Map<String, Double>? = (state as? StreamState.Streaming)?.dataPoint?.values
-            val toGo: Double? = values?.get(DataType.Field.DISTANCE_TO_DESTINATION)
-            val onRoute: Boolean = values?.get(DataType.Field.ON_ROUTE)?.let { it > 0.5 } ?: true
-            val usable: Boolean = route != null && toGo != null && (onRoute || route.approachLength > 0)
-            if (!usable) null else (route!!.routeDistance - toGo!!).coerceAtLeast(0.0)
-        }.collect { ClimbRepository.setProgress(it) }
+        combine(karoo.consumerFlow<OnLocationChanged>(), ClimbRepository.route) { location, route -> location to route }
+            .collect { (location: OnLocationChanged, route: ActiveRoute?) ->
+                val track: Track = route?.track ?: return@collect
+                val previous: Double? = ClimbRepository.progress.value.distanceAlongRoute
+                val d: Double = track.locate(LatLng(location.lat, location.lng), previous) ?: return@collect
+                if (previous == null) ActivityLog.add(String.format(java.util.Locale.US, "Position found on the route at %.1f km", d / 1000))
+                ClimbRepository.setProgress(d)
+            }
     }
 
     private fun watchUnits(): Job = scope.launch {
@@ -181,6 +198,7 @@ class ClimbNamerExtension : KarooExtension("climbnamer", BuildConfig.VERSION_NAM
                 AlertTiming.BEFORE_START ->
                     "Next: ${climb.label}" to "in ${units.distance(g.startDistance - d)} · $stats"
             }
+            ActivityLog.add("Alert: $title · $detail")
             karoo.dispatch(
                 InRideAlert(
                     id = "climbnamer-${g.index}",
@@ -231,6 +249,7 @@ class ClimbNamerExtension : KarooExtension("climbnamer", BuildConfig.VERSION_NAM
                         SystemNotification.Style.ERROR,
                     )
                 }
+                ActivityLog.add("Control Center: $message")
                 karoo.dispatch(
                     SystemNotification(
                         id = "climbnamer-sync",

@@ -25,7 +25,7 @@ You decide where names appear. Everything can be switched on or off in the Climb
 
 | | Where | Settings |
 |---|---|---|
-| 1 | **"Climb name" data field**: the current climb with distance to go, or the next climb | Add it to a ride page (or not); show the next climb when not climbing |
+| 1 | **"Climb name" data field**: "Climbing · climb 1/2" with distance to the top, "Next climb in 3.4 km", or "All climbs finished" | Add it to a ride page (or not); show the next climb when not climbing |
 | 2 | **Alert** with the name when a climb starts | On/off; at the start or 250 m / 500 m / 1 km before; 5, 8 or 15 s; also for unnamed climbs |
 | 3 | **Map labels**: the name as a summit marker at the top of each climb | On/off |
 | | **Looking up names** when a route is loaded | On/off; Nominatim fallback on/off; clear stored names |
@@ -45,7 +45,20 @@ Same approach as the browser extension, using OpenStreetMap:
 Requests go through the Karoo's own connection: **Wi-Fi, or the companion app on your phone over
 Bluetooth**. The Karoo often switches Wi-Fi off once a route is loaded; with the companion app
 connected, names are still looked up in the background as you ride. If there is no connection,
-ClimbNamer retries after 1, 2, 5, 10, 15 and 30 minutes, then stops until the route is reloaded.
+ClimbNamer retries after 1, 2 and 5 minutes and then every 10 minutes while the route is active;
+"Retry now" in the app tries right away.
+
+### During the ride
+
+ClimbNamer keeps the climbs it received when the route was loaded, with fixed numbers (the Karoo
+drops climbs from its own list once they're behind you). Your position comes from GPS matched to
+the route. If you leave the route (a detour), the last position is kept until you're back on it;
+climbs you skipped count as passed once you're beyond them. Climbs on a detour itself aren't named.
+
+### Activity log
+
+The app's "Activity" section lists what ClimbNamer did and when: route loaded, names looked up or
+not (with the reason), alerts and Control Center updates. Handy to understand a ride afterwards.
 
 Fair use of the free OpenStreetMap services: one small Overpass query per climb, mirrors tried one
 after another, Nominatim (optional) at most once per second, results cached, limited retries, and

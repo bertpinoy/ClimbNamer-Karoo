@@ -3,6 +3,7 @@ package io.github.bertpinoy.climbnamer.route
 import io.hammerhead.karooext.models.OnNavigationState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.math.abs
@@ -198,6 +199,60 @@ class RouteClimbsTest {
         // Without a usable profile the top is the climb's end (6 km).
         assertTrue(abs(Geo.haversine(origin, c.top) - 6000) < 60)
         assertTrue(result.diagnostics.contains("unusable"))
+    }
+
+    private fun straightTrack(): Track {
+        val result: RouteClimbs = RouteClimbsBuilder.build("Track", encode(straightRoute.map { it.lat to it.lng }, 5), null, straightTotal, oneClimb)!!
+        return result.track!!
+    }
+
+    @Test
+    fun locatesPositionAlongTheRoute() {
+        val track: Track = straightTrack()
+        val at: LatLng = straightRoute[30] // ~3 km
+        val d: Double = track.locate(LatLng(at.lat, at.lng + 0.0002), null)!! // ~14 m beside the road
+        assertEquals(Geo.haversine(origin, at), d, 20.0)
+    }
+
+    @Test
+    fun detourOffTheRouteGivesNoPosition() {
+        val track: Track = straightTrack()
+        val at: LatLng = straightRoute[30]
+        assertNull(track.locate(LatLng(at.lat, at.lng + 0.003), 2900.0)) // ~210 m away
+    }
+
+    @Test
+    fun outAndBackRouteFollowsTheRiderForwards() {
+        // 5 km north and back on the same road: at 1 km from the start on the way back,
+        // the position must be ~9 km, not 1 km.
+        val outAndBack: List<LatLng> = straightRoute.take(51) + straightRoute.take(50).reversed()
+        val total: Double = (1 until outAndBack.size).sumOf { Geo.haversine(outAndBack[it - 1], outAndBack[it]) }
+        val result: RouteClimbs = RouteClimbsBuilder.build("OutAndBack", encode(outAndBack.map { it.lat to it.lng }, 5), null, total, oneClimb)!!
+        val at: LatLng = straightRoute[10]
+        val d: Double = result.track!!.locate(at, 8800.0)!!
+        assertEquals(total - Geo.haversine(origin, at), d, 30.0)
+        // Without a previous position (just started), the earliest match is used.
+        assertEquals(Geo.haversine(origin, at), result.track!!.locate(at, null)!!, 30.0)
+    }
+
+    @Test
+    fun locatesPositionOnTheApproach() {
+        val join: LatLng = straightRoute[20]
+        val approach: List<LatLng> = (0..30).map { LatLng(join.lat, join.lng - 0.042 + it * 0.0014) }
+        val result: RouteClimbs = RouteClimbsBuilder.build(
+            name = "Approach",
+            polyline = encode(straightRoute.map { it.lat to it.lng }, 5),
+            elevationPolyline = null,
+            routeDistance = straightTotal,
+            climbs = oneClimb,
+            rejoinPolyline = encode(approach.map { it.lat to it.lng }, 5),
+            rejoinDistance = null,
+        )!!
+        val onApproach: Double = result.track!!.locate(approach[10], null)!!
+        assertEquals(Geo.haversine(approach.first(), approach[10]), onApproach, 30.0)
+        // On the route 1 km after the join: approach length + 1 km.
+        val onRoute: Double = result.track!!.locate(straightRoute[30], onApproach)!!
+        assertEquals(result.approachLength + Geo.haversine(join, straightRoute[30]), onRoute, 40.0)
     }
 
     /** Minimal Google polyline encoder for tests. */

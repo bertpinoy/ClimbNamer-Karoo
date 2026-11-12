@@ -92,21 +92,25 @@ class ClimbNameDataType(extension: String) : DataTypeImpl(extension, "climb-name
         if (current != null && d != null) {
             val g: ClimbGeo = current.geo
             return FieldContent(
-                "CLIMB ${g.index + 1}/$total",
+                "CLIMBING · CLIMB ${g.index + 1}/$total",
                 current.label,
-                "${units.distance(g.endDistance - d)} to go · ${units.grade(g.grade)}",
+                "${units.distance(g.endDistance - d)} to the top · ${units.grade(g.grade)}",
             )
+        }
+        if (ClimbRepository.allClimbsDone(route, progress)) {
+            return FieldContent("CLIMBS", "All climbs finished", "No more climbs on this route")
         }
         if (!settings.fieldShowsNextClimb) return FieldContent("CLIMB", "—", "Not on a climb")
         val next: NamedClimb = ClimbRepository.nextClimb(route, progress)
-            ?: return FieldContent("CLIMB", "No more climbs", "")
+            ?: return FieldContent("CLIMBS", "All climbs finished", "No more climbs on this route")
         val g: ClimbGeo = next.geo
-        val inText: String = d?.let { "in ${units.distance(g.startDistance - it)}" } ?: "${g.index + 1}/$total"
-        return FieldContent(
-            "NEXT CLIMB · $inText",
-            next.label,
-            units.climbStats(g.length, g.grade, g.totalElevation),
-        )
+        // Before the position on the route is known (e.g. not on the route yet), show the climb number.
+        val header: String = if (d != null) {
+            "NEXT CLIMB IN ${units.distance(g.startDistance - d).uppercase()}"
+        } else {
+            "NEXT CLIMB · ${g.index + 1}/$total"
+        }
+        return FieldContent(header, next.label, units.climbStats(g.length, g.grade, g.totalElevation))
     }
 
     private suspend fun render(context: Context, config: ViewConfig, emitter: ViewEmitter, c: FieldContent) {

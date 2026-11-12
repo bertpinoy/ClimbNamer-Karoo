@@ -43,6 +43,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.github.bertpinoy.climbnamer.ActivityLog
 import io.github.bertpinoy.climbnamer.ClimbRepository
 import io.github.bertpinoy.climbnamer.route.ClimbGeo
 import io.github.bertpinoy.climbnamer.Units
@@ -75,6 +76,8 @@ private fun SettingsScreen() {
     val settings: ClimbSettings by remember { SettingsStore.flow(context) }.collectAsState(initial = SettingsStore.get(context))
     val route: ActiveRoute? by ClimbRepository.route.collectAsState()
     val units: Units by ClimbRepository.units.collectAsState()
+    remember { ActivityLog.init(context) }
+    val activity: List<String> by ActivityLog.entries.collectAsState()
     val cache: NameCache = remember { NameCache(context) }
     var cacheSize: Int by remember { mutableIntStateOf(cache.size) }
 
@@ -155,8 +158,8 @@ private fun SettingsScreen() {
             r.climbs.forEach { c ->
                 val status: String = when {
                     c.name != null -> c.name.detail.ifEmpty { c.name.source }
-                    c.lookupFailed && c.retrying -> "no connection yet · will retry"
-                    c.lookupFailed -> "lookup failed · reload the route to try again"
+                    c.lookingUp -> "looking up…"
+                    c.lookupFailed -> "not named yet · retrying automatically"
                     else -> "looking up…"
                 }
                 val g: ClimbGeo = c.geo
@@ -168,7 +171,15 @@ private fun SettingsScreen() {
                         fontSize = 11.sp,
                     )
                     Text(if (g.onApproach) "on the way to the start · $status" else status, color = Mist, fontSize = 11.sp)
+                    c.lastError?.takeIf { c.name == null }?.let { Text(it, color = Mist, fontSize = 10.sp) }
                 }
+            }
+            if (r.climbs.any { it.name == null }) {
+                OutlinedButton(
+                    onClick = { ClimbRepository.retryNow() },
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Orange),
+                    modifier = Modifier.padding(top = 4.dp),
+                ) { Text("Retry now") }
             }
         }
 
@@ -182,6 +193,23 @@ private fun SettingsScreen() {
                 },
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = Orange),
             ) { Text("Clear") }
+        }
+
+        Section("Activity")
+        Text(
+            "What ClimbNamer did and when, newest first. Useful to see what happened during a ride.",
+            color = Mist,
+            fontSize = 12.sp,
+        )
+        if (activity.isEmpty()) {
+            Text("Nothing yet.", color = Mist, fontSize = 12.sp)
+        } else {
+            activity.forEach { line: String -> Text(line, color = Color.White, fontSize = 11.sp) }
+            OutlinedButton(
+                onClick = { ActivityLog.clear() },
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Orange),
+                modifier = Modifier.padding(top = 4.dp),
+            ) { Text("Clear activity") }
         }
 
         Spacer(Modifier.height(20.dp))

@@ -41,6 +41,8 @@ data class RouteClimbs(
     val approachLength: Double = 0.0,
     /** What ClimbNamer received from the Karoo, shown in the app for troubleshooting. */
     val diagnostics: String = "",
+    /** The navigated path, for finding where the rider is from GPS. */
+    val track: Track? = null,
 )
 
 /** How the elevation profile from the Karoo could be used. */
@@ -181,6 +183,7 @@ object RouteClimbsBuilder {
             climbs = result,
             approachLength = approachLength,
             diagnostics = diagnostics,
+            track = Track(approach, approachLength, route, joinAt * routeScale, routeScale),
         )
     }
 
@@ -221,8 +224,14 @@ class Path private constructor(private val coords: List<LatLng>, private val cum
      * after joining, the Karoo follows the route forwards from there.
      */
     fun closestDistanceTo(p: LatLng): Double {
-        var best: Double = Double.MAX_VALUE
-        val candidates: ArrayList<Pair<Double, Double>> = ArrayList() // (offset m, distance along)
+        val candidates: List<Pair<Double, Double>> = projections(p)
+        val best: Double = candidates.minOf { it.first }
+        return candidates.filter { it.first <= best + 30.0 }.minOf { it.second }
+    }
+
+    /** For every segment: (distance from [p] to the segment in m, distance along the path of the closest point). */
+    fun projections(p: LatLng): List<Pair<Double, Double>> {
+        val candidates: ArrayList<Pair<Double, Double>> = ArrayList()
         for (i in 1 until coords.size) {
             val a: LatLng = coords[i - 1]
             val b: LatLng = coords[i]
@@ -235,9 +244,8 @@ class Path private constructor(private val coords: List<LatLng>, private val cum
             val t: Double = if (len2 > 0) ((((p.lng - a.lng) * k) * dx + (p.lat - a.lat) * dy) / len2).coerceIn(0.0, 1.0) else 0.0
             val along: Double = cum[i - 1] + t * (cum[i] - cum[i - 1])
             candidates += offset to along
-            if (offset < best) best = offset
         }
-        return candidates.filter { it.first <= best + 30.0 }.minOf { it.second }
+        return candidates
     }
 
     fun pointAt(distance: Double): LatLng {
@@ -262,5 +270,44 @@ class Path private constructor(private val coords: List<LatLng>, private val cum
             for (i in 1 until coords.size) cum[i] = cum[i - 1] + Geo.haversine(coords[i - 1], coords[i])
             return Path(coords, cum)
         }
+    }
+}
+
+/**
+ * The path the Karoo navigates (approach, then the route from where it is joined), used to turn a
+ * GPS position into a distance along that path, in the same units as the Karoo's climb distances.
+ */
+class Track(
+    private val approach: Path?,
+    private val approachLength: Double,
+    private val route: Path,
+    /** Geometric distance along [route] where the approach joins it. */
+    private val joinAtGeo: Double,
+    /** Geometric route length / Karoo route length. */
+    private val routeScale: Double,
+) {
+    /**
+     * Distance along the navigated path (m) for [position], or null when the rider is more than
+     * [MAX_OFFSET] m away from it (e.g. a detour). With a [previous] distance, the match nearest to
+     * it going forwards is used, so loops and roads ridden twice don't make the position jump.
+     */
+    fun locate(position: LatLng, previous: Double?): Double? {
+        val candidates: ArrayList<Pair<Double, Double>> = ArrayList() // (offset m, distance along path)
+        approach?.projections(position)?.forEach { (offset: Double, along: Double) -> candidates += offset to along }
+        route.projections(position).forEach { (offset: Double, along: Double) ->
+            if (along >= joinAtGeo - 1.0) candidates += offset to (approachLength + (along - joinAtGeo) / routeScale)
+        }
+        val near: List<Pair<Double, Double>> = candidates.filter { it.first <= MAX_OFFSET }
+        if (near.isEmpty()) return null
+        if (previous != null) {
+            val ahead: List<Pair<Double, Double>> = near.filter { it.second >= previous - 200.0 && it.second <= previous + 3000.0 }
+            if (ahead.isNotEmpty()) return ahead.minByOrNull { it.first }!!.second
+        }
+        val best: Double = near.minOf { it.first }
+        return near.filter { it.first <= best + 30.0 }.minOf { it.second }
+    }
+
+    companion object {
+        const val MAX_OFFSET: Double = 60.0
     }
 }

@@ -35,13 +35,31 @@ class ClimbNamer(private val karoo: KarooSystemService) {
     private val userAgent: String = "ClimbNamer-Karoo/${BuildConfig.VERSION_NAME} (+https://github.com/bertpinoy/ClimbNamer-Karoo)"
     private val headers: Map<String, String> = mapOf("User-Agent" to userAgent, "Accept" to "application/json")
 
-    suspend fun name(climb: ClimbGeo, allowNominatim: Boolean): ClimbName? {
-        runCatching { return withOverpass(climb) }
-            .onFailure { Timber.w(it, "Overpass failed for climb ${climb.index}") }
-        if (!allowNominatim) return null
-        return runCatching { withNominatim(climb) }
-            .onFailure { Timber.w(it, "Nominatim failed for climb ${climb.index}") }
-            .getOrNull()
+    /** The name, or why it couldn't be found. */
+    data class Result(val name: ClimbName?, val error: String?)
+
+    suspend fun name(climb: ClimbGeo, allowNominatim: Boolean): Result {
+        val overpassError: String = try {
+            return Result(withOverpass(climb), null)
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException && e !is kotlinx.coroutines.TimeoutCancellationException) throw e
+            Timber.w(e, "Overpass failed for climb ${climb.index}")
+            describe(e)
+        }
+        if (!allowNominatim) return Result(null, "Overpass: $overpassError")
+        val nominatimError: String = try {
+            return Result(withNominatim(climb), null)
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException && e !is kotlinx.coroutines.TimeoutCancellationException) throw e
+            Timber.w(e, "Nominatim failed for climb ${climb.index}")
+            describe(e)
+        }
+        return Result(null, "Overpass: $overpassError; Nominatim: $nominatimError")
+    }
+
+    private fun describe(e: Exception): String = when (e) {
+        is kotlinx.coroutines.TimeoutCancellationException -> "no answer in time (no connection?)"
+        else -> e.message?.take(120) ?: e.javaClass.simpleName
     }
 
     // ------------------------------------------------------------------ Overpass
@@ -54,17 +72,13 @@ class ClimbNamer(private val karoo: KarooSystemService) {
     private suspend fun overpass(query: String): JsonObject {
         var last: Exception? = null
         for (url in overpassMirrors) {
-            val body: String = "data=" + URLEncoder.encode(query, "UTF-8")
-            val res: HttpResult = karoo.http(
-                "POST",
-                url,
-                headers + ("Content-Type" to "application/x-www-form-urlencoded"),
-                body.toByteArray(),
-            )
+            // GET with the query in the URL: simpler than POST for the Karoo's companion-app
+            // (Bluetooth) connection, and accepted by Overpass for queries of this size.
+            val res: HttpResult = karoo.http("GET", url + "?data=" + URLEncoder.encode(query, "UTF-8"), headers)
             if (res.ok && res.body != null) {
                 return json.parseToJsonElement(res.body).jsonObject
             }
-            last = IllegalStateException("Overpass $url: ${res.status} ${res.error ?: ""}")
+            last = IllegalStateException("${url.substringAfter("//").substringBefore("/")} ${if (res.status > 0) "HTTP ${res.status}" else ""} ${res.error ?: ""}".trim())
         }
         throw last ?: IllegalStateException("Overpass unavailable")
     }
@@ -164,7 +178,7 @@ class ClimbNamer(private val karoo: KarooSystemService) {
         if (wait > 0) delay(wait)
         nominatimLastAt = System.currentTimeMillis()
         val res: HttpResult = karoo.http("GET", "https://nominatim.openstreetmap.org$path", headers)
-        if (!res.ok || res.body == null) throw IllegalStateException("Nominatim: ${res.status} ${res.error ?: ""}")
+        if (!res.ok || res.body == null) throw IllegalStateException("${if (res.status > 0) "HTTP ${res.status}" else ""} ${res.error ?: ""}".trim())
         res.body
     }
 
