@@ -114,15 +114,15 @@ private fun SettingsScreen() {
         if (settings.alertsEnabled) {
             Choices(
                 "When",
-                listOf("At the start" to AlertTiming.AT_START, "Before the start" to AlertTiming.BEFORE_START),
+                listOf("At start" to AlertTiming.AT_START, "Before start" to AlertTiming.BEFORE_START),
                 settings.alertTiming,
             ) { v -> update { it.copy(alertTiming = v) } }
             if (settings.alertTiming == AlertTiming.BEFORE_START) {
-                Choices("How far before", listOf("250 m" to 250, "500 m" to 500, "1 km" to 1000), settings.alertBeforeMeters) { v ->
+                Choices("How far before (km)", listOf("0.25" to 250, "0.5" to 500, "1" to 1000), settings.alertBeforeMeters) { v ->
                     update { it.copy(alertBeforeMeters = v) }
                 }
             }
-            Choices("Show for", listOf("5 s" to 5, "8 s" to 8, "15 s" to 15), settings.alertSeconds) { v ->
+            Choices("Show for (s)", listOf("5" to 5, "8" to 8, "15" to 15), settings.alertSeconds) { v ->
                 update { it.copy(alertSeconds = v) }
             }
             Toggle("Also alert climbs without a name", settings.alertUnnamedClimbs) { v ->
