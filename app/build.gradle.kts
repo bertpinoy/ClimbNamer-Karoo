@@ -13,8 +13,8 @@ android {
         applicationId = "io.github.bertpinoy.climbnamer"
         minSdk = 23
         targetSdk = 34
-        versionCode = 10
-        versionName = "0.2.1"
+        versionCode = 11
+        versionName = "0.2.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

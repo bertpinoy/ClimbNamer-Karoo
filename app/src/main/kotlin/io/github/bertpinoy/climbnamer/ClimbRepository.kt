@@ -133,14 +133,19 @@ object ClimbRepository {
         val routeKey: String = _route.value?.key ?: return
         lookupJob = ctx.scope.launch {
             var attempt: Int = 0
+            var quickRetryDone: Boolean = false
             while (true) {
                 val todo: List<NamedClimb> = _route.value?.takeIf { it.key == routeKey }?.climbs?.filter { it.name == null } ?: return@launch
                 if (todo.isEmpty()) return@launch
                 ActivityLog.add("Looking up ${todo.size} climb name(s)" + if (attempt > 0) " (retry $attempt)" else "")
+                // A success after a failure in the same round means the connection came back.
+                var failedEarlier: Boolean = false
+                var connectionBack: Boolean = false
                 for (climb in todo) {
                     updateClimb(routeKey, climb.geo.index) { it.copy(lookupFailed = false, retrying = false, lookingUp = true) }
                     val result: ClimbNamer.Result = ctx.namer.name(climb.geo, ctx.allowNominatim)
                     val name: ClimbName? = result.name
+                    if (name == null) failedEarlier = true else if (failedEarlier) connectionBack = true
                     if (name != null) {
                         ctx.cache.put(climb.geo, name)
                         ActivityLog.add(String.format(java.util.Locale.US, "Climb %d named via %s in %.1f s: %s", climb.geo.index + 1, result.source, result.millis / 1000.0, name.name))
@@ -153,6 +158,14 @@ object ClimbRepository {
                 }
                 val stillMissing: Boolean = _route.value?.takeIf { it.key == routeKey }?.climbs?.any { it.name == null } ?: false
                 if (!stillMissing) return@launch
+                // Connection is back: retry the climbs that failed right away (once), instead of
+                // waiting for the next scheduled try.
+                if (connectionBack && !quickRetryDone) {
+                    quickRetryDone = true
+                    ActivityLog.add("Connection is back: retrying the missing climb(s) now")
+                    continue
+                }
+                quickRetryDone = false
                 val wait: Long = retryMinutes.getOrNull(attempt) ?: RETRY_EVERY_MINUTES
                 attempt++
                 ActivityLog.add("Next try in $wait min")
@@ -161,8 +174,9 @@ object ClimbRepository {
         }
     }
 
-    /** Called from the app: try missing names again right away. */
+    /** Called from the app: try missing names again right away (ignored while a lookup is running). */
     fun retryNow() {
+        if (_route.value?.climbs?.any { it.lookingUp } == true) return
         lookupJob?.cancel()
         lookupJob = null
         ActivityLog.add("Retry requested in the app")
