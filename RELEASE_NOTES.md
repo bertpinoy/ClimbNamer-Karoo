@@ -1,1 +1,1 @@
-Fix: when you load a route from home, climbs the Karoo marks on the way to the route are shown again (in the data field, alerts and as summit labels on the map). The Karoo sends its climb list a moment after the route, and ClimbNamer ignored it once it had found your position at the start. Climbs on the route itself are still detected from its elevation profile, as in 0.3.0.
+The activity log now says why a climb was named via the Overpass backup instead of Nominatim (for example "Nominatim: no answer in time"), so slow lookups are easier to understand.

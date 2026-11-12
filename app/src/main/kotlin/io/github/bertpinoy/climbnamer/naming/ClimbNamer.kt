@@ -26,7 +26,7 @@ import java.util.Locale
  *   2. the road the climb mostly follows;
  *   3. the nearest village or town ("Climb near …").
  *
- * Overpass API first (one small query per climb); Nominatim as optional fallback.
+ * The bundled hill list first, then Nominatim, then the Overpass API as backup.
  * Fair use: mirrors are tried one after another, Nominatim gets at most 1 request/second,
  * and every request identifies the app.
  */
@@ -36,7 +36,14 @@ class ClimbNamer(private val karoo: KarooSystemService, private val summits: Sum
     private val headers: Map<String, String> = mapOf("User-Agent" to userAgent, "Accept" to "application/json")
 
     /** The name and where it came from, or why it couldn't be found. */
-    data class Result(val name: ClimbName?, val error: String?, val source: String = "", val millis: Long = 0)
+    data class Result(
+        val name: ClimbName?,
+        val error: String?,
+        val source: String = "",
+        val millis: Long = 0,
+        /** Why an earlier source didn't give the name, when a later one did. */
+        val skipped: String? = null,
+    )
 
     /**
      * Fastest first: the bundled list of named hills and passes (instant, offline), then Nominatim
@@ -59,7 +66,7 @@ class ClimbNamer(private val karoo: KarooSystemService, private val summits: Sum
             }
         }
         val overpassError: String = try {
-            return Result(withOverpass(climb), null, "Overpass", elapsed())
+            return Result(withOverpass(climb), null, "Overpass", elapsed(), nominatimError?.let { "Nominatim: $it" } ?: if (!allowNominatim) "Nominatim is off" else null)
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException && e !is kotlinx.coroutines.TimeoutCancellationException) throw e
             Timber.w(e, "Overpass failed for climb ${climb.index}")

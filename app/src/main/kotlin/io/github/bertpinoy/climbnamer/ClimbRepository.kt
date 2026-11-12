@@ -148,7 +148,7 @@ object ClimbRepository {
                     if (name == null) failedEarlier = true else if (failedEarlier) connectionBack = true
                     if (name != null) {
                         ctx.cache.put(climb.geo, name)
-                        ActivityLog.add(String.format(java.util.Locale.US, "Climb %d named via %s in %.1f s: %s", climb.geo.index + 1, result.source, result.millis / 1000.0, name.name))
+                        ActivityLog.add(String.format(java.util.Locale.US, "Climb %d named via %s in %.1f s: %s", climb.geo.index + 1, result.source, result.millis / 1000.0, name.name) + (result.skipped?.let { " ($it)" } ?: ""))
                     } else {
                         ActivityLog.add("Climb ${climb.geo.index + 1} not named: ${result.error ?: "unknown error"}")
                     }
