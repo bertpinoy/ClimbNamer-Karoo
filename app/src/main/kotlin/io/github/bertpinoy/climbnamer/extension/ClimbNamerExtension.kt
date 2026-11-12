@@ -44,6 +44,9 @@ import kotlinx.coroutines.launch
 import timber.log.Timber
 import kotlin.math.min
 
+/** Up to this far along the route (m), a climb list that arrives late still replaces the current one. */
+private const val STILL_AT_START: Double = 500.0
+
 /**
  * The ClimbNamer Karoo extension:
  *  - reads the climbs of the route being navigated and looks up their names (cached);
@@ -98,7 +101,11 @@ class ClimbNamerExtension : KarooExtension("climbnamer", BuildConfig.VERSION_NAM
             val key: String = navKey(nav.state)
             val hasClimbs: Boolean = climbsOf(nav.state).isNotEmpty()
             val hasApproach: Boolean = (nav.state as? OnNavigationState.NavigationState.NavigatingRoute)?.rejoinPolyline != null
-            val notMovedYet: Boolean = ClimbRepository.progress.value.distanceAlongRoute == null
+            // Position tracking starts right away (often at 0.0 km while still at home), and the Karoo
+            // can send its climb list a little after the route itself. So "not moved yet" means not
+            // past the first few hundred metres, not "no position yet".
+            val travelled: Double? = ClimbRepository.progress.value.distanceAlongRoute
+            val notMovedYet: Boolean = travelled == null || travelled < STILL_AT_START
             val rebuild: Boolean = key != lastKey ||
                 (hasClimbs && !lastHadClimbs && notMovedYet) ||
                 (hasApproach && !lastHadApproach && notMovedYet)
