@@ -8,6 +8,8 @@ A [Karoo extension](https://github.com/hammerheadnav/karoo-ext) that gives names
 on the route you navigate on your Hammerhead Karoo. The Karoo shows climbs as
 "Climb 2 of 5"; ClimbNamer tells you it's the *Kemmelberg*.
 
+![ClimbNamer on a Karoo: next climb, alert before the climb, and on the climb](docs/screenshots/karoo-overview.png)
+
 Companion of the [ClimbNamer browser extension](https://github.com/bertpinoy/ClimbNamer) for
 the Hammerhead dashboard.
 

@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ClimbNamer Karoo screens</title>
+<!--
+  Mockups of ClimbNamer on a Karoo 3 (480 x 800 px, dark theme), rendered to PNG by render.py.
+  Open with ?s=next, ?s=alert or ?s=climbing. Texts and colours match the extension
+  (ClimbNameDataType.kt and the in-ride alert); the ride data around it is made up.
+-->
+<style>
+  :root { --orange: #FF6B1A; --line: #2e2e2e; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 480px; height: 800px; background: #000; overflow: hidden; }
+  body { font-family: Roboto, "Segoe UI", Arial, sans-serif; color: #fff; display: flex; flex-direction: column; position: relative; }
+  .bar { height: 36px; display: flex; justify-content: space-between; align-items: center; padding: 0 16px; font-size: 20px; border-bottom: 1px solid var(--line); }
+  .grid { flex: 1; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr 1fr; }
+  .f { border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 10px 16px; display: flex; flex-direction: column; justify-content: center; }
+  .f:nth-child(2n) { border-right: none; }
+  .l { font-size: 20px; color: #9a9a9a; letter-spacing: 1px; }
+  .v { font-size: 76px; font-weight: 700; line-height: 1.05; }
+  .v small { font-size: 28px; font-weight: 400; color: #9a9a9a; margin-left: 4px; }
+  .cn { grid-column: span 2; padding: 12px 18px; display: flex; flex-direction: column; justify-content: center; gap: 2px; }
+  .h { font-size: 21px; color: var(--orange); font-weight: 700; letter-spacing: .5px; }
+  .t { font-size: 46px; font-weight: 700; line-height: 1.15; }
+  .d { font-size: 21px; color: #B0BAC6; }
+  .dots { height: 34px; display: flex; justify-content: center; align-items: center; gap: 10px; border-top: 1px solid var(--line); }
+  .dots span { width: 11px; height: 11px; border-radius: 50%; background: #444; }
+  .dots span.on { background: #fff; }
+  .alert { position: absolute; top: 48px; left: 12px; right: 12px; background: #1E2940; border: 2px solid #3a4a6b; border-radius: 16px; padding: 18px 20px; display: flex; gap: 18px; align-items: center; }
+  .alert .at { font-size: 32px; font-weight: 700; }
+  .alert .ad { font-size: 21px; color: #d8dde6; margin-top: 4px; }
+  .dim .grid { opacity: .45; }
+</style>
+</head>
+<body>
+<div class="bar"><span id="time">18:42</span><span>87%</span></div>
+<div class="grid" id="grid"></div>
+<div class="dots"><span class="on"></span><span></span><span></span></div>
+<script>
+  const screens = {
+    next: {
+      time: '18:42',
+      fields: [['SPEED', '31.4', 'km/h'], ['POWER', '228', 'W'], ['HEART RATE', '142', 'bpm'], ['DISTANCE', '18.6', 'km']],
+      climb: ['NEXT CLIMB IN 2.4 KM', 'Kemmelberg', '1.1 km · 6.3% · +71 m'],
+    },
+    alert: {
+      time: '18:46',
+      fields: [['SPEED', '29.8', 'km/h'], ['POWER', '241', 'W'], ['HEART RATE', '148', 'bpm'], ['DISTANCE', '20.5', 'km']],
+      climb: ['NEXT CLIMB IN 500 M', 'Kemmelberg', '1.1 km · 6.3% · +71 m'],
+      alert: ['Next: Kemmelberg', 'in 500 m · 1.1 km · 6.3% · +71 m'],
+    },
+    climbing: {
+      time: '18:49',
+      fields: [['SPEED', '14.2', 'km/h'], ['POWER', '312', 'W'], ['HEART RATE', '167', 'bpm'], ['GRADE', '9.4', '%']],
+      climb: ['CLIMBING · CLIMB 2/3', 'Kemmelberg', '450 m to the top · 6.3%'],
+    },
+  };
+  const s = screens[new URLSearchParams(location.search).get('s')] || screens.next;
+  document.getElementById('time').textContent = s.time;
+  const grid = document.getElementById('grid');
+  for (const [label, value, unit] of s.fields) {
+    grid.insertAdjacentHTML('beforeend', `<div class="f"><span class="l">${label}</span><span class="v">${value}<small>${unit}</small></span></div>`);
+  }
+  const [h, t, d] = s.climb;
+  grid.insertAdjacentHTML('beforeend', `<div class="cn"><span class="h">${h}</span><span class="t">${t}</span><span class="d">${d}</span></div>`);
+  if (s.alert) {
+    document.body.classList.add('dim');
+    document.body.insertAdjacentHTML('beforeend',
+      `<div class="alert"><svg width="60" height="60" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 20 L9 9 L13 14 L16 10 L22 20 Z" fill="#fff"/></svg>` +
+      `<div><div class="at">${s.alert[0]}</div><div class="ad">${s.alert[1]}</div></div></div>`);
+  }
+</script>
+</body>
+</html>
