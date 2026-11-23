@@ -13,7 +13,8 @@ the Hammerhead dashboard.
 
 > **Not affiliated with Hammerhead or SRAM.** ClimbNamer is an independent project.
 
-> **Status: early development.** Tested on a Karoo; see the [releases](https://github.com/bertpinoy/ClimbNamer-Karoo/releases).
+> **Version 1.0.** Tested on real rides on a Karoo 3. Submitted to SRAM for the Hammerhead Extension
+> Library; until it's approved, install it as described under [Install on a Karoo](#install-on-a-karoo).
 
 ## What it does
 
@@ -25,8 +26,8 @@ You decide where names appear. Everything can be switched on or off in the Climb
 
 | | Where | Settings |
 |---|---|---|
-| 1 | **"Climb name" data field**: "Climbing · climb 1/2" with distance to the top, "Next climb in 3.4 km", or "All climbs finished" | Add it to a ride page (or not); show the next climb when not climbing |
-| 2 | **Alert** with the name when a climb starts | On/off; at the start or 250 m / 500 m / 1 km before; 5, 8 or 15 s; also for unnamed climbs |
+| 1 | **"Climb name" data field**: "Climbing · climb 1/2" with distance to the top, "Next climb in 3.4 km", or "All climbs finished · No more climbs on this route" | Add it to a ride page (or not); show the next climb when not climbing |
+| 2 | **Alert** with the name when a climb starts | On/off; at start or before start (0.25, 0.5 or 1 km); shown for 5, 8 or 15 s; also for unnamed climbs |
 | 3 | **Map labels**: the name as a summit marker at the top of each climb | On/off |
 | | **Looking up names** when a route is loaded | On/off; Nominatim fallback on/off; clear stored names |
 | | **Progress in the Control Center**: "Naming climbs… 1 of 2", "2 climbs named", waiting for a connection | On/off; only shown when names had to be looked up |
@@ -98,22 +99,31 @@ length, approach length, where you join the route, and whether the elevation pro
 
 ## Install on a Karoo
 
-**Via the Extension Library** (recommended): add this application manifest URL as a new extension
-in your Hammerhead settings. ClimbNamer then appears in the Extension Library on your Karoo and
-receives updates from new releases:
+Needs a Karoo with extension support (karoo-ext); tested on a Karoo 3.
+
+**From the Extension Library** (once approved by SRAM): open the Extension Library on the Karoo,
+install ClimbNamer, and updates arrive automatically.
+
+**Until then, with your own Hammerhead developer account:** enable the developer settings at
+[dashboard.hammerhead.io/developer/signup](https://dashboard.hammerhead.io/developer/signup), add a
+new extension in the Extensions settings with this application manifest URL, and ClimbNamer appears
+in the Extension Library on Karoos signed in to that account, with automatic updates:
 
 ```
 https://github.com/bertpinoy/ClimbNamer-Karoo/releases/latest/download/manifest.json
 ```
 
-**Manually:**
+**Or sideload it:**
 
-1. Download `climbnamer.apk` from the [latest release](https://github.com/bertpinoy/ClimbNamer-Karoo/releases)
-   (or the `climbnamer-apk` artifact of the latest [build](https://github.com/bertpinoy/ClimbNamer-Karoo/actions)).
+1. Download `climbnamer.apk` from the [latest release](https://github.com/bertpinoy/ClimbNamer-Karoo/releases/latest).
 2. Install it on the Karoo: share the download link with the Hammerhead companion app, or use
-   `adb install climbnamer.apk` with the Karoo connected over USB (developer mode).
-3. Open **ClimbNamer** on the Karoo to check the settings.
-4. Add the **Climb name** field (ClimbNamer) to a ride page in your ride profile.
+   `adb install climbnamer.apk` with the Karoo connected over USB (USB debugging on).
+
+**Then:**
+
+1. Open **ClimbNamer** on the Karoo and check the settings.
+2. Add the **Climb name** field (ClimbNamer) to a ride page in your ride profile.
+3. Load a route: the names are looked up straight away, over Wi-Fi or the companion app.
 
 ## Build
 
@@ -144,11 +154,15 @@ these repository secrets: `SIGNING_KEYSTORE_BASE64`, `SIGNING_KEYSTORE_PASSWORD`
 
 | Path | Contents |
 |---|---|
-| `extension/ClimbNamerExtension.kt` | The Karoo extension: route tracking, alerts, map labels |
+| `extension/ClimbNamerExtension.kt` | The Karoo extension: route tracking, alerts, map labels, Control Center |
 | `extension/ClimbNameDataType.kt` | The "Climb name" data field (Glance view) |
-| `route/RouteClimbs.kt` | Climb positions and summit from the route polyline and elevation profile |
-| `naming/ClimbNamer.kt` | OpenStreetMap lookups (Overpass, Nominatim) |
+| `route/RouteClimbs.kt` | Climb positions, approach and join point, GPS position along the route |
+| `route/ClimbDetector.kt` | Climb detection from the elevation profile (route part when navigating from elsewhere) |
+| `naming/ClimbNamer.kt` | Name lookup: built-in hill list, Nominatim, Overpass |
+| `naming/Summits.kt` | The built-in list of named hills and passes (Benelux) |
 | `naming/NameCache.kt` | Names stored on the Karoo |
+| `ClimbRepository.kt` | Current route, lookups and retries, progress |
+| `ActivityLog.kt` | The activity log and its export |
 | `settings/Settings.kt` | All on/off settings |
 | `ui/MainActivity.kt` | Settings screen |
 
