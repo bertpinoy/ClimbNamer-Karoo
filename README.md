@@ -66,6 +66,9 @@ climbs you skipped count as passed once you're beyond them. Climbs on a detour i
 
 The app's "Activity" section lists what ClimbNamer did and when: route loaded, names looked up or
 not (with the reason), alerts and Control Center updates. Handy to understand a ride afterwards.
+**Export** saves the whole list (up to 300 entries) as a text file in the Karoo's `Download` folder
+(`Android/data/io.github.bertpinoy.climbnamer/files/Download` before Android 10), to copy to a
+computer over USB or with `adb pull`.
 
 Fair use of the free OpenStreetMap services: Nominatim at most once per second (3–4 requests per
 climb), Overpass only as a backup with mirrors tried one after another, results stored on the

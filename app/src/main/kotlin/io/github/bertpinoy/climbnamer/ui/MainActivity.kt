@@ -30,6 +30,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -59,6 +60,9 @@ private val Navy: Color = Color(0xFF0C1220)
 private val Slate: Color = Color(0xFF1E2940)
 private val Mist: Color = Color(0xFF94A3B8)
 
+/** Activity entries shown in the app; Export writes all of them. */
+private const val SHOWN_ENTRIES: Int = 60
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -78,6 +82,7 @@ private fun SettingsScreen() {
     val units: Units by ClimbRepository.units.collectAsState()
     remember { ActivityLog.init(context) }
     val activity: List<String> by ActivityLog.entries.collectAsState()
+    var exportMessage: String? by remember { mutableStateOf(null) }
     val cache: NameCache = remember { NameCache(context) }
     var cacheSize: Int by remember { mutableIntStateOf(cache.size) }
 
@@ -204,12 +209,27 @@ private fun SettingsScreen() {
         if (activity.isEmpty()) {
             Text("Nothing yet.", color = Mist, fontSize = 12.sp)
         } else {
-            activity.forEach { line: String -> Text(line, color = Color.White, fontSize = 11.sp) }
-            OutlinedButton(
-                onClick = { ActivityLog.clear() },
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = Orange),
-                modifier = Modifier.padding(top = 4.dp),
-            ) { Text("Clear activity") }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 4.dp)) {
+                OutlinedButton(
+                    onClick = {
+                        exportMessage = runCatching { "Saved to ${ActivityLog.export(context)}" }
+                            .getOrElse { e: Throwable -> "Export failed: ${e.message ?: e.javaClass.simpleName}" }
+                    },
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Orange),
+                ) { Text("Export") }
+                OutlinedButton(
+                    onClick = {
+                        ActivityLog.clear()
+                        exportMessage = null
+                    },
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Orange),
+                ) { Text("Clear") }
+            }
+            exportMessage?.let { msg: String -> Text(msg, color = Orange, fontSize = 12.sp) }
+            activity.take(SHOWN_ENTRIES).forEach { line: String -> Text(line, color = Color.White, fontSize = 11.sp) }
+            if (activity.size > SHOWN_ENTRIES) {
+                Text("… ${activity.size - SHOWN_ENTRIES} older entries, all included in Export.", color = Mist, fontSize = 11.sp)
+            }
         }
 
         Spacer(Modifier.height(20.dp))

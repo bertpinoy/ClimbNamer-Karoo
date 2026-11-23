@@ -1,1 +1,1 @@
-Clearer alert settings: "At start" / "Before start", "How far before (km)": 0.25, 0.5, 1, and "Show for (s)": 5, 8, 15.
+Activity log: new Export button that saves the whole list as a text file in the Karoo's Download folder, so you can copy it to your computer over USB instead of taking photos. The log now keeps up to 300 entries (the app shows the newest 60), enough for a long ride.

@@ -1,6 +1,11 @@
 package io.github.bertpinoy.climbnamer
 
+import android.content.ContentValues
 import android.content.Context
+import android.net.Uri
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -15,7 +20,8 @@ import java.util.Locale
  * problems during a ride can be understood afterwards. Kept on the Karoo, newest first, limited size.
  */
 object ActivityLog {
-    private const val MAX_ENTRIES: Int = 60
+    /** Enough for a long ride: route load, lookups, position and alerts for every climb. */
+    private const val MAX_ENTRIES: Int = 300
     private val lock: Any = Any()
     private var file: File? = null
     private val _entries: MutableStateFlow<List<String>> = MutableStateFlow(emptyList())
@@ -38,6 +44,37 @@ object ActivityLog {
         _entries.value = updated
         runCatching { file?.writeText(updated.joinToString("\n")) }
         Unit
+    }
+
+    /**
+     * Writes the whole log to a text file that can be copied off the Karoo over USB:
+     * Download/ on Android 10 and later, otherwise Android/data/<app>/files/Download/.
+     * Returns where the file was saved.
+     */
+    fun export(context: Context): String {
+        val entries: List<String> = _entries.value
+        val stamp: String = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
+        val fileName: String = "ClimbNamer-activity-$stamp.txt"
+        val text: String = (listOf("ClimbNamer ${BuildConfig.VERSION_NAME} activity, newest first", "") + entries)
+            .joinToString(separator = "\n", postfix = "\n")
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val values: ContentValues = ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                put(MediaStore.MediaColumns.MIME_TYPE, "text/plain")
+                put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+            }
+            val uri: Uri = context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                ?: throw IllegalStateException("Could not create the file")
+            context.contentResolver.openOutputStream(uri)?.use { it.write(text.toByteArray()) }
+                ?: throw IllegalStateException("Could not write the file")
+            "Download/$fileName"
+        } else {
+            val dir: File = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+                ?: throw IllegalStateException("No storage available")
+            val f: File = File(dir, fileName)
+            f.writeText(text)
+            f.absolutePath.substringAfter("/0/").substringAfter("/sdcard/")
+        }
     }
 
     fun clear(): Unit = synchronized(lock) {
